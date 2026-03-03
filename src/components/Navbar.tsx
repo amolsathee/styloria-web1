@@ -1,0 +1,292 @@
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Menu, X, User as UserIcon, LogOut } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import logo from "@/assets/logo.svg";
+import { useStore } from "@/lib/store";
+
+const navLinks = [
+  { label: "Home", href: "/#home", isHash: true },
+  { label: "Services", href: "/#services", isHash: true },
+  { label: "Bridal", href: "/#bridal", isHash: true },
+  { label: "Gallery", href: "/gallery", isHash: false },
+  { label: "Offers", href: "/offers", isHash: false },
+  { label: "Contact", href: "/#contact", isHash: true },
+];
+
+const Navbar = () => {
+  const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { currentUser, loginUser, logoutUser, users } = useStore();
+  const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
+  const [authForm, setAuthForm] = useState({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
+
+  const handleAuthSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!authForm.email || !authForm.password) return;
+
+    if (authMode === "register") {
+      if (!authForm.name || !authForm.phone) return;
+      if (authForm.password !== authForm.confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+      }
+    }
+
+    let userName = authForm.name;
+    let userPhone = authForm.phone;
+    let userEmail = authForm.email;
+
+    if (authMode === "login") {
+      const existingUser = users.find(u => u.email === authForm.email || u.phone === authForm.email);
+      userName = existingUser?.name || authForm.email.split("@")[0] || "User";
+      userPhone = existingUser?.phone || "";
+      userEmail = existingUser?.email || authForm.email;
+    }
+
+    loginUser({ name: userName || "User", email: userEmail, phone: userPhone });
+    setAuthMode(null);
+    setAuthForm({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
+  };
+
+  return (
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
+        <div className="container mx-auto flex items-center justify-between h-16 md:h-20 px-4">
+          <Link to="/" className="flex items-center gap-2">
+            <img src={logo} alt="Styloria" className="h-10 md:h-14 w-auto" />
+          </Link>
+
+          {/* Desktop nav */}
+          <div className="hidden md:flex items-center gap-8">
+            {navLinks.map((link) =>
+              link.isHash ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className="text-base font-body font-medium text-foreground/70 hover:text-primary transition-colors"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  className="text-base font-body font-medium text-foreground/70 hover:text-primary transition-colors"
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
+            {currentUser ? (
+              <div className="flex items-center gap-3 relative">
+                <button
+                  onClick={() => {
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) dropdown.classList.toggle('hidden');
+                  }}
+                  className="text-sm font-medium text-foreground flex items-center gap-2 hover:text-primary transition-colors focus:outline-none"
+                >
+                  <UserIcon size={18} /> Hi, {currentUser.name || "User"}
+                </button>
+                <div id="user-dropdown" className="hidden absolute right-0 top-full mt-4 w-40 bg-background border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <button onClick={() => {
+                    navigate("/profile");
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) dropdown.classList.add('hidden');
+                  }} className="w-full px-4 py-3 flex items-center gap-2 text-sm text-foreground hover:bg-secondary transition-colors text-left border-b border-border">
+                    <UserIcon size={16} /> My Profile
+                  </button>
+                  <button onClick={() => {
+                    logoutUser();
+                    const dropdown = document.getElementById('user-dropdown');
+                    if (dropdown) dropdown.classList.add('hidden');
+                  }} className="w-full px-4 py-3 flex items-center gap-2 text-sm text-red-500 hover:bg-secondary transition-colors text-left">
+                    <LogOut size={16} /> Logout
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAuthMode("login")}
+                className="text-base font-body font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
+              >
+                <UserIcon size={18} /> Sign In
+              </button>
+            )}
+            <Link
+              to="/#booking"
+              className="gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-base font-semibold hover:opacity-90 transition-opacity"
+            >
+              Book Now
+            </Link>
+          </div>
+
+          {/* Mobile toggle */}
+          <button
+            onClick={() => setOpen(!open)}
+            className="md:hidden text-foreground"
+            aria-label="Toggle menu"
+          >
+            {open ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        {/* Mobile menu */}
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="md:hidden bg-background border-b border-border overflow-hidden"
+            >
+              <div className="flex flex-col gap-1 p-4">
+                {navLinks.map((link) =>
+                  link.isHash ? (
+                    <a
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className="py-3 px-4 rounded-lg text-foreground/70 hover:bg-secondary hover:text-primary transition-colors font-medium"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={link.href}
+                      to={link.href}
+                      onClick={() => setOpen(false)}
+                      className="py-3 px-4 rounded-lg text-foreground/70 hover:bg-secondary hover:text-primary transition-colors font-medium"
+                    >
+                      {link.label}
+                    </Link>
+                  )
+                )}
+                {currentUser ? (
+                  <div className="flex items-center justify-between py-3 px-4 border-t border-border mt-2">
+                    <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <UserIcon size={18} /> Hi, {currentUser.name || "User"}
+                    </span>
+                    <div className="flex gap-3">
+                      <button onClick={() => { navigate("/profile"); setOpen(false); }} className="text-primary text-sm font-medium">Profile</button>
+                      <button onClick={() => { logoutUser(); setOpen(false); }} className="text-red-500 text-sm font-medium">Logout</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setAuthMode("login"); setOpen(false); }}
+                    className="py-3 px-4 rounded-lg text-left text-foreground hover:bg-secondary hover:text-primary transition-colors font-medium flex items-center gap-2"
+                  >
+                    <UserIcon size={18} /> Sign In / Register
+                  </button>
+                )}
+                <Link
+                  to="/#booking"
+                  onClick={() => setOpen(false)}
+                  className="gradient-primary text-primary-foreground px-6 py-3 rounded-full text-center font-semibold mt-2"
+                >
+                  Book Now
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </nav>
+
+      {/* Auth Modal Overlay */}
+      <AnimatePresence>
+        {authMode && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-card w-full max-w-sm p-8 rounded-3xl relative"
+            >
+              <button onClick={() => setAuthMode(null)} className="absolute top-4 right-4 text-muted-foreground hover:text-foreground">
+                <X size={20} />
+              </button>
+              <h2 className="text-2xl font-bold font-heading mb-6 text-center">
+                {authMode === "login" ? "Welcome Back" : "Create Account"}
+              </h2>
+              <form onSubmit={handleAuthSubmit} className="space-y-4">
+                {authMode === "register" && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Full Name</label>
+                      <input
+                        type="text" required value={authForm.name}
+                        onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Contact Number</label>
+                      <input
+                        type="tel" required value={authForm.phone}
+                        onChange={(e) => setAuthForm({ ...authForm, phone: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    {authMode === "login" ? "Email Address or Phone Number" : "Email Address"}
+                  </label>
+                  <input
+                    type={authMode === "login" ? "text" : "email"} required value={authForm.email}
+                    onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Password</label>
+                  <input
+                    type="password" required value={authForm.password}
+                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  {authMode === "login" && (
+                    <div className="flex justify-end mt-2">
+                      <button type="button" onClick={() => alert("Note: This is a frontend demo. No actual email is sent, but in a real app, a password reset link would be emailed to you.")} className="text-sm text-primary font-medium hover:underline">
+                        Forgot your password?
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {authMode === "register" && (
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">Confirm Password</label>
+                    <input
+                      type="password" required value={authForm.confirmPassword}
+                      onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
+                      className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+                )}
+                <button type="submit" className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold mt-4">
+                  {authMode === "login" ? "Sign In" : "Register"}
+                </button>
+              </form>
+              <p className="text-center text-sm text-muted-foreground mt-6">
+                {authMode === "login" ? "Don't have an account?" : "Already have an account?"}
+                <button
+                  onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
+                  className="text-primary font-semibold ml-1 hover:underline"
+                >
+                  {authMode === "login" ? "Sign up" : "Log in"}
+                </button>
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+export default Navbar;
