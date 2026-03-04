@@ -58,6 +58,14 @@ export type User = {
     phone?: string;
 };
 
+export type AppNotification = {
+    id: string;
+    userId: string;
+    message: string;
+    isRead: boolean;
+    date: string;
+};
+
 type StoreContextType = {
     media: MediaItem[];
     addMedia: (item: Omit<MediaItem, "id">) => void;
@@ -80,6 +88,10 @@ type StoreContextType = {
     loginUser: (user: User) => void;
     logoutUser: () => void;
     updateUser: (email: string, name: string, phone?: string) => void;
+    selectedServiceToBook: string | null;
+    setSelectedServiceToBook: (service: string | null) => void;
+    notifications: AppNotification[];
+    markNotificationAsRead: (id: string) => void;
 };
 
 const initialMedia: MediaItem[] = [
@@ -184,6 +196,13 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         return saved ? JSON.parse(saved) : [];
     });
 
+    const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+        const saved = localStorage.getItem("styloria-notifications");
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    const [selectedServiceToBook, setSelectedServiceToBook] = useState<string | null>(null);
+
     useEffect(() => {
         localStorage.setItem("styloria-media", JSON.stringify(media));
     }, [media]);
@@ -211,6 +230,10 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         localStorage.setItem("styloria-users", JSON.stringify(users));
     }, [users]);
+
+    useEffect(() => {
+        localStorage.setItem("styloria-notifications", JSON.stringify(notifications));
+    }, [notifications]);
 
     const addMedia = (item: Omit<MediaItem, "id">) => {
         setMedia((prev) => [...prev, { ...item, id: Date.now().toString() }]);
@@ -278,9 +301,28 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     const updateBookingStatus = (id: string, status: Booking["status"]) => {
-        setBookings((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status } : b))
-        );
+        setBookings((prev) => {
+            const booking = prev.find(b => b.id === id);
+
+            // If we are confirming the booking, send a notification
+            if (booking && booking.status !== "Confirmed" && status === "Confirmed") {
+                const userId = booking.email || booking.phone;
+                if (userId) {
+                    setNotifications(n => [
+                        {
+                            id: Date.now().toString(),
+                            userId,
+                            message: `Your booking for ${booking.service} on ${booking.date} at ${booking.time} has been confirmed.`,
+                            isRead: false,
+                            date: new Date().toISOString()
+                        },
+                        ...n
+                    ]);
+                }
+            }
+
+            return prev.map((b) => (b.id === id ? { ...b, status } : b));
+        });
     };
 
     const updateBooking = (id: string, date: string, time: string) => {
@@ -322,6 +364,10 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const markNotificationAsRead = (id: string) => {
+        setNotifications((prev) => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+    };
+
     return (
         <StoreContext.Provider
             value={{
@@ -346,6 +392,10 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
                 loginUser,
                 logoutUser,
                 updateUser,
+                selectedServiceToBook,
+                setSelectedServiceToBook,
+                notifications,
+                markNotificationAsRead,
             }}
         >
             {children}

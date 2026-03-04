@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, User as UserIcon, LogOut } from "lucide-react";
+import { Menu, X, User as UserIcon, LogOut, Bell } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.svg";
 import { useStore } from "@/lib/store";
@@ -17,9 +17,12 @@ const navLinks = [
 const Navbar = () => {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const { currentUser, loginUser, logoutUser, users } = useStore();
+  const { currentUser, loginUser, logoutUser, users, notifications, markNotificationAsRead } = useStore();
   const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
+
+  const userNotifications = currentUser ? notifications.filter(n => n.userId === currentUser.email || n.userId === currentUser.phone) : [];
+  const unreadNotifications = userNotifications.filter(n => !n.isRead);
 
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,16 +53,54 @@ const Navbar = () => {
     setAuthForm({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
   };
 
+  const renderNotifications = (isMobile = false) => {
+    if (!currentUser) return null;
+    const dropdownId = isMobile ? 'notif-dropdown-mobile' : 'notif-dropdown';
+    return (
+      <div className="relative">
+        <button
+          onClick={() => {
+            const dropdown = document.getElementById(dropdownId);
+            if (dropdown) dropdown.classList.toggle('hidden');
+          }}
+          className="relative p-2 text-foreground/70 hover:text-primary transition-colors focus:outline-none"
+        >
+          <Bell size={20} />
+          {unreadNotifications.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+          )}
+        </button>
+        <div id={dropdownId} className={`hidden absolute ${isMobile ? 'right-0 -mr-4 md:mr-0' : 'right-0'} top-full mt-4 w-72 max-h-80 overflow-y-auto bg-background border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-2 duration-200`}>
+          <div className="p-3 border-b border-border font-semibold text-sm">Notifications</div>
+          {userNotifications.length > 0 ? (
+            userNotifications.map(n => (
+              <div
+                key={n.id}
+                onClick={() => markNotificationAsRead(n.id)}
+                className={`p-3 border-b border-border/50 text-sm cursor-pointer transition-colors hover:bg-secondary ${n.isRead ? 'opacity-70' : 'bg-primary/5'}`}
+              >
+                <p className="mb-1 text-foreground/90">{n.message}</p>
+                <span className="text-xs text-muted-foreground">{new Date(n.date).toLocaleDateString()}</span>
+              </div>
+            ))
+          ) : (
+            <div className="p-4 text-center text-sm text-muted-foreground">No notifications yet.</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
-        <div className="container mx-auto flex items-center justify-between h-16 md:h-20 px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <img src={logo} alt="Styloria" className="h-10 md:h-14 w-auto" />
+        <div className="container mx-auto flex items-center justify-between h-16 lg:h-20 px-4">
+          <Link to="/" className="flex items-center gap-2 shrink-0">
+            <img src={logo} alt="Styloria" className="h-10 lg:h-14 w-auto" />
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden lg:flex items-center gap-6 xl:gap-8">
             {navLinks.map((link) =>
               link.isHash ? (
                 <a
@@ -80,31 +121,36 @@ const Navbar = () => {
               )
             )}
             {currentUser ? (
-              <div className="flex items-center gap-3 relative">
-                <button
-                  onClick={() => {
-                    const dropdown = document.getElementById('user-dropdown');
-                    if (dropdown) dropdown.classList.toggle('hidden');
-                  }}
-                  className="text-sm font-medium text-foreground flex items-center gap-2 hover:text-primary transition-colors focus:outline-none"
-                >
-                  <UserIcon size={18} /> Hi, {currentUser.name || "User"}
-                </button>
-                <div id="user-dropdown" className="hidden absolute right-0 top-full mt-4 w-40 bg-background border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <button onClick={() => {
-                    navigate("/profile");
-                    const dropdown = document.getElementById('user-dropdown');
-                    if (dropdown) dropdown.classList.add('hidden');
-                  }} className="w-full px-4 py-3 flex items-center gap-2 text-sm text-foreground hover:bg-secondary transition-colors text-left border-b border-border">
-                    <UserIcon size={16} /> My Profile
+              <div className="flex items-center gap-4 relative">
+                {/* Notifications */}
+                {renderNotifications(false)}
+
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      const dropdown = document.getElementById('user-dropdown');
+                      if (dropdown) dropdown.classList.toggle('hidden');
+                    }}
+                    className="text-sm font-medium text-foreground flex items-center gap-2 hover:text-primary transition-colors focus:outline-none"
+                  >
+                    <UserIcon size={18} /> Hi, {currentUser.name || "User"}
                   </button>
-                  <button onClick={() => {
-                    logoutUser();
-                    const dropdown = document.getElementById('user-dropdown');
-                    if (dropdown) dropdown.classList.add('hidden');
-                  }} className="w-full px-4 py-3 flex items-center gap-2 text-sm text-red-500 hover:bg-secondary transition-colors text-left">
-                    <LogOut size={16} /> Logout
-                  </button>
+                  <div id="user-dropdown" className="hidden absolute right-0 top-full mt-4 w-40 bg-background border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button onClick={() => {
+                      navigate("/profile");
+                      const dropdown = document.getElementById('user-dropdown');
+                      if (dropdown) dropdown.classList.add('hidden');
+                    }} className="w-full px-4 py-3 flex items-center gap-2 text-sm text-foreground hover:bg-secondary transition-colors text-left border-b border-border">
+                      <UserIcon size={16} /> My Profile
+                    </button>
+                    <button onClick={() => {
+                      logoutUser();
+                      const dropdown = document.getElementById('user-dropdown');
+                      if (dropdown) dropdown.classList.add('hidden');
+                    }} className="w-full px-4 py-3 flex items-center gap-2 text-sm text-red-500 hover:bg-secondary transition-colors text-left">
+                      <LogOut size={16} /> Logout
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -123,14 +169,17 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Mobile toggle */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="md:hidden text-foreground"
-            aria-label="Toggle menu"
-          >
-            {open ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          {/* ALWAYS VISIBLE RIGHT ACTIONS (Notifications + Mobile Toggle) */}
+          <div className="flex items-center gap-2 lg:hidden">
+            {renderNotifications(true)}
+            <button
+              onClick={() => setOpen(!open)}
+              className="text-foreground p-2"
+              aria-label="Toggle menu"
+            >
+              {open ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile menu */}
@@ -140,7 +189,7 @@ const Navbar = () => {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="md:hidden bg-background border-b border-border overflow-hidden"
+              className="lg:hidden bg-background border-b border-border overflow-hidden"
             >
               <div className="flex flex-col gap-1 p-4">
                 {navLinks.map((link) =>

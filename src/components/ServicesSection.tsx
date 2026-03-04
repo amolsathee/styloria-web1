@@ -7,7 +7,7 @@ const ServicesSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
 
-  const { categories } = useStore();
+  const { categories, setSelectedServiceToBook } = useStore();
 
   const [activeTab, setActiveTab] = useState(categories[0]?.id || "hair");
 
@@ -40,8 +40,8 @@ const ServicesSection = () => {
               key={cat.id}
               onClick={() => setActiveTab(cat.id)}
               className={`px-6 py-3 rounded-full text-base font-semibold transition-all ${activeTab === cat.id
-                  ? "gradient-primary text-primary-foreground shadow-lg shadow-primary/20"
-                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                ? "gradient-primary text-primary-foreground shadow-lg shadow-primary/20"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                 }`}
             >
               {cat.label}
@@ -71,6 +71,7 @@ const ServicesSection = () => {
               </div>
               <a
                 href="#booking"
+                onClick={() => setSelectedServiceToBook(`${service.name} (${service.price})`)}
                 className="mt-4 border border-primary/30 text-primary text-center py-2.5 rounded-full text-base font-semibold hover:bg-primary hover:text-primary-foreground transition-colors"
               >
                 Book Now

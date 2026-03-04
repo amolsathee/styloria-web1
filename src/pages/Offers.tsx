@@ -16,7 +16,7 @@ const iconMap: Record<string, any> = {
 };
 
 const Offers = () => {
-  const { offers } = useStore();
+  const { offers, setSelectedServiceToBook } = useStore();
   return (
     <div className="min-h-screen">
       <Navbar />
@@ -79,6 +79,7 @@ const Offers = () => {
                   <p className="text-muted-foreground text-sm">{offer.desc}</p>
                   <a
                     href="/#booking"
+                    onClick={() => setSelectedServiceToBook(`${offer.title} (${offer.price})`)}
                     className="inline-block mt-5 gradient-primary text-primary-foreground px-6 py-2.5 rounded-full text-sm font-semibold hover:opacity-90 transition-opacity"
                   >
                     Book Now

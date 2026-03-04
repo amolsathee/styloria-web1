@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { Crown, Check } from "lucide-react";
 import bridalImg from "@/assets/bridal-1.jpg";
+import { useStore } from "@/lib/store";
 
 export const bridalPackages = [
   {
@@ -43,6 +44,7 @@ const tierColors = {
 const BridalSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
+  const { setSelectedServiceToBook } = useStore();
 
   return (
     <section id="bridal" className="section-padding bg-secondary/30 relative overflow-hidden" ref={ref}>
@@ -103,6 +105,7 @@ const BridalSection = () => {
 
               <Link
                 to="/#booking"
+                onClick={() => setSelectedServiceToBook(`${pkg.name} (${pkg.price})`)}
                 className={`text-center py-3 rounded-full font-semibold transition-all ${pkg.popular
                   ? "gradient-primary text-primary-foreground shadow-lg shadow-primary/20"
                   : "border-2 border-primary/30 text-primary hover:bg-primary hover:text-primary-foreground"

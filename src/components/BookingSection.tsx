@@ -9,10 +9,11 @@ const beauticians = ["Any Available", "Pooja", "Sonali"];
 const BookingSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
-  const { categories, addBooking, offers, currentUser } = useStore();
+  const { categories, addBooking, offers, currentUser, selectedServiceToBook, setSelectedServiceToBook } = useStore();
   const [submitted, setSubmitted] = useState(false);
-  const allServices = categories.map((c) => c.services.map((s) => s.name)).flat();
-  const allOffers = offers.filter(o => o.title !== "Bridal Membership").map((o) => o.title);
+  const [submittedPhone, setSubmittedPhone] = useState("");
+  const allServices = categories.map((c) => c.services.map((s) => `${s.name} (${s.price})`)).flat();
+  const allOffers = offers.filter(o => o.title !== "Bridal Membership").map((o) => `${o.title} (${o.price})`);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -26,6 +27,7 @@ const BookingSection = () => {
       beautician: formData.get("beautician") as string,
       email: currentUser?.email,
     });
+    setSubmittedPhone(formData.get("phone") as string);
     setSubmitted(true);
   };
 
@@ -55,8 +57,16 @@ const BookingSection = () => {
             <p className="text-muted-foreground">
               We'll send you a confirmation via SMS & email shortly. See you at Styloria! 💕
             </p>
+            <div className="mt-4 p-4 bg-secondary/50 rounded-xl text-sm">
+              <p className="font-semibold text-foreground mb-1">Confirmation Details Sent To:</p>
+              <p>Phone: {submittedPhone}</p>
+              {currentUser?.email && <p>Email: {currentUser.email}</p>}
+            </div>
             <button
-              onClick={() => setSubmitted(false)}
+              onClick={() => {
+                setSubmitted(false);
+                setSelectedServiceToBook(null);
+              }}
               className="mt-6 gradient-primary text-primary-foreground px-8 py-3 rounded-full font-semibold"
             >
               Book Another
@@ -105,6 +115,8 @@ const BookingSection = () => {
               <select
                 name="service"
                 required
+                value={selectedServiceToBook || ""}
+                onChange={(e) => setSelectedServiceToBook(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all appearance-none"
               >
                 <option value="">Choose a service</option>
@@ -120,7 +132,7 @@ const BookingSection = () => {
                 </optgroup>
                 <optgroup label="Bridal Packages">
                   {bridalPackages.map((pkg) => (
-                    <option key={pkg.name} value={pkg.name}>{pkg.name} - {pkg.price}</option>
+                    <option key={pkg.name} value={`${pkg.name} (${pkg.price})`}>{pkg.name} - {pkg.price}</option>
                   ))}
                 </optgroup>
               </select>
