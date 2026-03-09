@@ -168,14 +168,14 @@ const Admin = () => {
 
                         <form onSubmit={handleLogin} className="space-y-4">
                             <div>
-                                <label className="text-sm font-medium mb-1.5 block">Username</label>
+                                <label className="text-sm font-medium mb-1.5 block">Email Address</label>
                                 <input
-                                    type="text"
+                                    type="email"
                                     required
                                     value={loginForm.username}
                                     onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                                     className="w-full px-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
-                                    placeholder="Enter username"
+                                    placeholder="admin@styloria.com"
                                 />
                             </div>
                             <div>
