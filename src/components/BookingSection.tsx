@@ -185,6 +185,7 @@ const BookingSection = () => {
                     name="date"
                     required
                     type="date"
+                    min={new Date().toISOString().split("T")[0]}
                     className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                   />
                 </div>
