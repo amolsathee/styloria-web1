@@ -3,7 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/lib/store";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Trash2, Plus, Check, Lock, LogOut, Edit, X } from "lucide-react";
+import { Trash2, Plus, Check, Lock, LogOut, Edit, X, Mail } from "lucide-react";
+import { userAPI, adminAPI, bookingAPI, authAPI } from "@/services/api";
 
 const Admin = () => {
     const {
@@ -23,11 +24,15 @@ const Admin = () => {
         removeOffer,
         updateOffer,
         users,
+        loginUser,
+        logoutUser,
     } = useStore();
 
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [loginForm, setLoginForm] = useState({ username: "", password: "" });
     const [loginError, setLoginError] = useState("");
+    const [backendUsers, setBackendUsers] = useState<any[]>([]);
+    const [backendBookings, setBackendBookings] = useState<any[]>([]);
 
     const [newMedia, setNewMedia] = useState({ src: "", label: "", type: "photo" as "photo" | "video", category: "Makeup" });
     const [newService, setNewService] = useState({ name: "", price: "", categoryId: "hair" });
@@ -40,27 +45,77 @@ const Admin = () => {
     const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
     useEffect(() => {
-        const auth = localStorage.getItem("styloria-admin-auth");
-        if (auth === "true") {
+        const token = localStorage.getItem("styloria-jwt-token");
+        const role = localStorage.getItem("styloria-role");
+        if (token && role === "admin") {
             setIsAuthenticated(true);
+            fetchUsers();
+            fetchBookings();
         }
     }, []);
 
-    const handleLogin = (e: React.FormEvent) => {
+    const fetchBookings = async () => {
+        try {
+            const res = await bookingAPI.getAllBookings();
+            setBackendBookings(res.data);
+        } catch (err) {
+            console.error("Failed to fetch bookings");
+        }
+    };
+
+    const fetchUsers = async () => {
+        try {
+            const res = await userAPI.getAllUsers();
+            setBackendUsers(res.data);
+        } catch (err) {
+            console.error("Failed to fetch users");
+        }
+    };
+
+    const handleSendFeedbackEmail = async (email: string) => {
+        const message = window.prompt(`Compose feedback reply for ${email}:`);
+        if (!message) return;
+
+        try {
+            await adminAPI.sendFeedbackEmail({ to: email, subject: "Styloria Admin - Feedback Response", text: message });
+            alert("Feedback sent successfully.");
+        } catch (err) {
+            alert("Failed to send feedback email.");
+        }
+    };
+
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        // Hardcoded credentials for simplicity
-        if (loginForm.username === "admin" && loginForm.password === "admin123") {
+        setLoginError("");
+
+        try {
+            const loginRes = await authAPI.login({
+                email: loginForm.username,
+                password: loginForm.password,
+            });
+
+            const { token, user } = loginRes.data;
+            if (user.role !== "admin") {
+                setLoginError("Access denied: You are not an admin.");
+                return;
+            }
+
+            localStorage.setItem("styloria-jwt-token", token);
+            localStorage.setItem("styloria-role", user.role);
+            loginUser(user);
             setIsAuthenticated(true);
-            localStorage.setItem("styloria-admin-auth", "true");
-            setLoginError("");
-        } else {
-            setLoginError("Invalid username or password");
+            fetchUsers();
+            fetchBookings();
+        } catch (err: any) {
+            setLoginError(err.response?.data?.message || "Invalid credentials. Are you an admin?");
         }
     };
 
     const handleLogout = () => {
         setIsAuthenticated(false);
-        localStorage.removeItem("styloria-admin-auth");
+        localStorage.removeItem("styloria-jwt-token");
+        localStorage.removeItem("styloria-role");
+        logoutUser();
         setLoginForm({ username: "", password: "" });
     };
 
@@ -181,7 +236,7 @@ const Admin = () => {
                         <TabsContent value="bookings" className="space-y-4">
                             <div className="glass-card p-6 rounded-2xl">
                                 <h2 className="text-xl font-semibold mb-4">Manage Bookings</h2>
-                                {bookings.length === 0 ? (
+                                {backendBookings.length === 0 ? (
                                     <p className="text-muted-foreground">No bookings yet.</p>
                                 ) : (
                                     <div className="overflow-x-auto">
@@ -198,8 +253,8 @@ const Admin = () => {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {bookings.map((b) => (
-                                                    <tr key={b.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
+                                                {backendBookings.map((b) => (
+                                                    <tr key={b._id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
                                                         <td className="p-3 font-medium">{b.name}</td>
                                                         <td className="p-3 text-muted-foreground">{b.phone}</td>
                                                         <td className="p-3">{b.service}</td>
@@ -218,9 +273,11 @@ const Admin = () => {
                                                             <span
                                                                 className={`px-3 py-1 text-xs font-semibold rounded-full ${b.status === "Confirmed"
                                                                     ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                                                    : b.status === "Pending"
-                                                                        ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                                                        : "bg-secondary text-secondary-foreground"
+                                                                    : b.status === "Declined" || b.status === "Cancelled"
+                                                                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                                        : b.status === "Pending"
+                                                                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                                                            : "bg-secondary text-secondary-foreground"
                                                                     }`}
                                                             >
                                                                 {b.status}
@@ -228,9 +285,9 @@ const Admin = () => {
                                                         </td>
                                                         <td className="p-3">
                                                             <div className="flex items-center justify-end gap-2">
-                                                                {editingBookingId === b.id ? (
+                                                                {editingBookingId === b._id ? (
                                                                     <>
-                                                                        <button onClick={() => { updateBooking(b.id, editBookingForm.date, editBookingForm.time); setEditingBookingId(null); }} className="text-green-600 hover:text-green-700 bg-green-100 p-2 rounded-full transition-colors" title="Save Booking">
+                                                                        <button onClick={() => { updateBooking(b._id, editBookingForm.date, editBookingForm.time); setEditingBookingId(null); }} className="text-green-600 hover:text-green-700 bg-green-100 p-2 rounded-full transition-colors" title="Save Booking">
                                                                             <Check size={16} />
                                                                         </button>
                                                                         <button onClick={() => setEditingBookingId(null)} className="text-red-500 bg-red-100 p-2 rounded-full transition-colors" title="Cancel">
@@ -238,14 +295,19 @@ const Admin = () => {
                                                                         </button>
                                                                     </>
                                                                 ) : (
-                                                                    <button onClick={() => { setEditingBookingId(b.id); setEditBookingForm({ date: b.date, time: b.time }); }} className="text-blue-600 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Edit Booking Date/Time">
+                                                                    <button onClick={() => { setEditingBookingId(b._id); setEditBookingForm({ date: b.date, time: b.time }); }} className="text-blue-600 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Edit Booking Date/Time">
                                                                         <Edit size={16} />
                                                                     </button>
                                                                 )}
                                                                 {b.status === "Pending" && (
-                                                                    <button onClick={() => updateBookingStatus(b.id, "Confirmed")} className="text-green-600 hover:text-green-700 bg-green-100 hover:bg-green-200 p-2 rounded-full transition-colors" title="Confirm Booking">
-                                                                        <Check size={16} />
-                                                                    </button>
+                                                                    <>
+                                                                        <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Confirmed"); fetchBookings(); }} className="text-green-600 hover:text-green-700 bg-green-100 hover:bg-green-200 p-2 rounded-full transition-colors" title="Confirm Booking">
+                                                                            <Check size={16} />
+                                                                        </button>
+                                                                        <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Declined"); fetchBookings(); }} className="text-red-600 hover:text-red-700 bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors" title="Decline Booking">
+                                                                            <X size={16} />
+                                                                        </button>
+                                                                    </>
                                                                 )}
                                                             </div>
                                                         </td>
@@ -498,7 +560,7 @@ const Admin = () => {
                         <TabsContent value="users" className="space-y-4">
                             <div className="glass-card p-6 rounded-2xl">
                                 <h2 className="text-xl font-semibold mb-4">Registered Users</h2>
-                                {users.length === 0 ? (
+                                {backendUsers.length === 0 ? (
                                     <p className="text-muted-foreground">No users registered yet.</p>
                                 ) : (
                                     <div className="overflow-x-auto">
@@ -507,18 +569,30 @@ const Admin = () => {
                                                 <tr className="border-b border-border/50 text-muted-foreground">
                                                     <th className="p-3 font-medium">Name</th>
                                                     <th className="p-3 font-medium">Email Address</th>
+                                                    <th className="p-3 font-medium">Phone Number</th>
+                                                    <th className="p-3 font-medium text-right">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {users.map((u, i) => (
-                                                    <tr key={i} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
+                                                {backendUsers.map((u, i) => (
+                                                    <tr key={u._id || i} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
                                                         <td className="p-3 font-medium flex items-center gap-2">
-                                                            <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
-                                                                {u.name.charAt(0).toUpperCase()}
-                                                            </div>
+                                                            {u.profileImage ? (
+                                                                <img src={u.profileImage} alt="Profile" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                                            ) : (
+                                                                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+                                                                    {u.name.charAt(0).toUpperCase()}
+                                                                </div>
+                                                            )}
                                                             {u.name}
                                                         </td>
                                                         <td className="p-3 text-muted-foreground">{u.email}</td>
+                                                        <td className="p-3 text-muted-foreground">{u.phone || "-"}</td>
+                                                        <td className="p-3 text-right">
+                                                            <button onClick={() => handleSendFeedbackEmail(u.email)} className="text-sm bg-blue-100/50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ml-auto">
+                                                                <Mail size={14} /> Send Reply
+                                                            </button>
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

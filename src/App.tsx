@@ -12,6 +12,8 @@ import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import VerifyEmail from "./pages/auth/VerifyEmail";
+import ResetPassword from "./pages/auth/ResetPassword";
 
 import { StoreProvider } from "./lib/store";
 
@@ -31,6 +33,8 @@ const App = () => (
             <Route path="/offers" element={<Offers />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/verify-email/:token" element={<VerifyEmail />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             <Route path="/profile" element={
               <>
                 <Navbar />

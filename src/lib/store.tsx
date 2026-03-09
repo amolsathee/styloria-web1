@@ -37,7 +37,7 @@ export type Booking = {
     date: string;
     time: string;
     beautician: string;
-    status: "Pending" | "Confirmed" | "Completed" | "Cancelled";
+    status: "Pending" | "Confirmed" | "Completed" | "Cancelled" | "Declined";
 };
 
 export type Offer = {
@@ -53,9 +53,11 @@ export type Offer = {
 };
 
 export type User = {
+    id?: string;
     name: string;
     email: string;
     phone?: string;
+    profileImage?: string;
 };
 
 export type AppNotification = {
@@ -87,7 +89,7 @@ type StoreContextType = {
     users: User[];
     loginUser: (user: User) => void;
     logoutUser: () => void;
-    updateUser: (email: string, name: string, phone?: string) => void;
+    updateUser: (email: string, name: string, phone?: string, profileImage?: string) => void;
     selectedServiceToBook: string | null;
     setSelectedServiceToBook: (service: string | null) => void;
     notifications: AppNotification[];
@@ -304,20 +306,30 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         setBookings((prev) => {
             const booking = prev.find(b => b.id === id);
 
-            // If we are confirming the booking, send a notification
-            if (booking && booking.status !== "Confirmed" && status === "Confirmed") {
+            if (booking && booking.status !== status) {
                 const userId = booking.email || booking.phone;
                 if (userId) {
-                    setNotifications(n => [
-                        {
-                            id: Date.now().toString(),
-                            userId,
-                            message: `Your booking for ${booking.service} on ${booking.date} at ${booking.time} has been confirmed.`,
-                            isRead: false,
-                            date: new Date().toISOString()
-                        },
-                        ...n
-                    ]);
+                    let message = "";
+                    if (status === "Confirmed") {
+                        message = `Your booking for ${booking.service} on ${booking.date} at ${booking.time} has been confirmed.`;
+                    } else if (status === "Declined") {
+                        message = `Your booking for ${booking.service} on ${booking.date} at ${booking.time} has been declined.`;
+                    } else if (status === "Cancelled") {
+                        message = `Your booking for ${booking.service} on ${booking.date} at ${booking.time} has been cancelled.`;
+                    }
+
+                    if (message) {
+                        setNotifications(n => [
+                            {
+                                id: Date.now().toString(),
+                                userId,
+                                message,
+                                isRead: false,
+                                date: new Date().toISOString()
+                            },
+                            ...n
+                        ]);
+                    }
                 }
             }
 
@@ -357,10 +369,10 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
 
     const logoutUser = () => setCurrentUser(null);
 
-    const updateUser = (email: string, name: string, phone?: string) => {
-        setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, name, phone } : u)));
+    const updateUser = (email: string, name: string, phone?: string, profileImage?: string) => {
+        setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, name, phone, profileImage: profileImage || u.profileImage } : u)));
         if (currentUser?.email === email) {
-            setCurrentUser({ ...currentUser, name, phone });
+            setCurrentUser({ ...currentUser, name, phone, profileImage: profileImage || currentUser.profileImage });
         }
     };
 

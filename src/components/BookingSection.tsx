@@ -1,34 +1,57 @@
 import { motion, useInView } from "framer-motion";
 import { useRef, useState } from "react";
-import { Calendar, Clock, User, CheckCircle } from "lucide-react";
+import { Calendar, Clock, User, CheckCircle, Mail } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { bridalPackages } from "./BridalSection";
+import { bookingAPI } from "@/services/api";
 
 const beauticians = ["Any Available", "Pooja", "Sonali"];
 
 const BookingSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
-  const { categories, addBooking, offers, currentUser, selectedServiceToBook, setSelectedServiceToBook } = useStore();
+  const { categories, addBooking, offers, currentUser, selectedServiceToBook, setSelectedServiceToBook, bookings } = useStore();
   const [submitted, setSubmitted] = useState(false);
+  const [errorObj, setErrorObj] = useState<string | null>(null);
   const [submittedPhone, setSubmittedPhone] = useState("");
   const allServices = categories.map((c) => c.services.map((s) => `${s.name} (${s.price})`)).flat();
   const allOffers = offers.filter(o => o.title !== "Bridal Membership").map((o) => `${o.title} (${o.price})`);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    addBooking({
+    const date = formData.get("date") as string;
+    const time = formData.get("time") as string;
+
+    // Optional local check first
+    const isSlotTaken = bookings.some(b => b.date === date && b.time === time && b.status !== "Cancelled" && b.status !== "Declined");
+    if (isSlotTaken) {
+      setErrorObj("This time slot is already booked locally. Please choose another time.");
+      return;
+    }
+
+    const payload = {
       name: formData.get("name") as string,
       phone: formData.get("phone") as string,
       service: formData.get("service") as string,
-      date: formData.get("date") as string,
-      time: formData.get("time") as string,
+      date,
+      time,
       beautician: formData.get("beautician") as string,
-      email: currentUser?.email,
-    });
-    setSubmittedPhone(formData.get("phone") as string);
-    setSubmitted(true);
+      email: formData.get("email") as string || currentUser?.email || "",
+    };
+
+    try {
+      const res = await bookingAPI.createBooking(payload);
+
+      // Update local store
+      addBooking(payload);
+
+      setSubmittedPhone(payload.phone);
+      setErrorObj(null);
+      setSubmitted(true);
+    } catch (err: any) {
+      setErrorObj(err.response?.data?.message || "Failed to book appointment. Please try again.");
+    }
   };
 
   return (
@@ -107,6 +130,20 @@ const BookingSection = () => {
                   className="w-full px-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                 />
               </div>
+              <div className="sm:col-span-2">
+                <label className="text-sm font-medium mb-1.5 block">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    name="email"
+                    required
+                    type="email"
+                    defaultValue={currentUser?.email || ""}
+                    placeholder="your@email.com"
+                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Service */}
@@ -175,6 +212,10 @@ const BookingSection = () => {
                 ))}
               </select>
             </div>
+
+            {errorObj && (
+              <p className="text-red-500 text-sm text-center bg-red-50 dark:bg-red-900/20 py-2 rounded-lg">{errorObj}</p>
+            )}
 
             <button
               type="submit"

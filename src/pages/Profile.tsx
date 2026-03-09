@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Navigate } from "react-router-dom";
-import { User, Mail, Phone } from "lucide-react";
+import { User, Mail, Phone, Camera, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { userAPI, bookingAPI } from "@/services/api";
 
 const Profile = () => {
     const { currentUser, updateUser, bookings } = useStore();
@@ -12,19 +13,57 @@ const Profile = () => {
         email: currentUser?.email || "",
         phone: currentUser?.phone || "",
     });
+    const [isUploading, setIsUploading] = useState(false);
+    const [backendBookings, setBackendBookings] = useState<any[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     if (!currentUser) {
         return <Navigate to="/" />;
     }
 
-    const userBookings = bookings.filter(
-        (b) => b.email === currentUser.email || b.phone === currentUser.phone
-    );
+    useEffect(() => {
+        if (currentUser?.email || currentUser?.phone) {
+            bookingAPI.getUserBookings({ email: currentUser.email, phone: currentUser.phone })
+                .then(res => setBackendBookings(res.data))
+                .catch(err => console.error("Failed to load user bookings", err));
+        }
+    }, [currentUser]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        updateUser(formData.email, formData.name, formData.phone);
+        updateUser(formData.email, formData.name, formData.phone, currentUser.profileImage);
         setIsEditing(false);
+    };
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Basic validation
+        if (!file.type.startsWith("image/")) {
+            alert("Please upload a valid image file.");
+            return;
+        }
+
+        setIsUploading(true);
+
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+            const base64String = reader.result as string;
+            try {
+                if (currentUser.id) {
+                    await userAPI.updateProfileImage(currentUser.id, base64String);
+                }
+                updateUser(currentUser.email, currentUser.name, currentUser.phone, base64String);
+                alert("Profile picture updated successfully!");
+            } catch (err) {
+                console.error("Failed to upload image:", err);
+                alert("Failed to update profile picture.");
+            } finally {
+                setIsUploading(false);
+            }
+        };
+        reader.readAsDataURL(file);
     };
 
     return (
@@ -57,7 +96,41 @@ const Profile = () => {
                     <div className="grid md:grid-cols-2 gap-8">
                         {/* Profile Details */}
                         <div className="glass-card rounded-3xl p-8 h-fit">
-                            <h2 className="text-2xl font-bold font-heading mb-6">Personal Details</h2>
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between mb-8 gap-4">
+                                <h2 className="text-2xl font-bold font-heading">Personal Details</h2>
+
+                                {/* Profile Picture Upload Area */}
+                                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        className="hidden"
+                                        accept="image/*"
+                                        onChange={handleImageUpload}
+                                    />
+                                    <div className="w-24 h-24 rounded-full border-4 border-background shadow-lg overflow-hidden bg-secondary flex items-center justify-center relative">
+                                        {currentUser.profileImage ? (
+                                            <img src={currentUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User size={40} className="text-muted-foreground" />
+                                        )}
+                                        {isUploading && (
+                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                                <Loader2 className="animate-spin text-white" size={24} />
+                                            </div>
+                                        )}
+                                        {!isUploading && (
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <Camera className="text-white" size={24} />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="absolute -bottom-2 -right-2 bg-primary text-white p-1.5 rounded-full shadow-lg pointer-events-none">
+                                        <Camera size={14} />
+                                    </div>
+                                </div>
+                            </div>
+
                             {!isEditing ? (
                                 <div className="space-y-6">
                                     <div className="flex items-center gap-4">
@@ -149,10 +222,10 @@ const Profile = () => {
                         {/* Bookings & Offers */}
                         <div className="glass-card rounded-3xl p-8">
                             <h2 className="text-2xl font-bold font-heading mb-6">Your Bookings & Offers</h2>
-                            {userBookings.length > 0 ? (
+                            {backendBookings.length > 0 ? (
                                 <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
-                                    {userBookings.map((b) => (
-                                        <div key={b.id} className="bg-background border border-border rounded-xl p-5 hover:shadow-md transition-shadow">
+                                    {backendBookings.map((b) => (
+                                        <div key={b._id} className="bg-background border border-border rounded-xl p-5 hover:shadow-md transition-shadow">
                                             <div className="flex justify-between items-start mb-2">
                                                 <h4 className="font-semibold text-lg text-foreground">{b.service}</h4>
                                                 <span
@@ -160,7 +233,7 @@ const Profile = () => {
                                                         ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
                                                         : b.status === "Completed"
                                                             ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
-                                                            : b.status === "Cancelled"
+                                                            : b.status === "Cancelled" || b.status === "Declined"
                                                                 ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
                                                                 : "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
                                                         }`}

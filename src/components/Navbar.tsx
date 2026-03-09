@@ -4,6 +4,7 @@ import { Menu, X, User as UserIcon, LogOut, Bell } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import logo from "@/assets/logo.svg";
 import { useStore } from "@/lib/store";
+import { authAPI } from "@/services/api";
 
 const navLinks = [
   { label: "Home", href: "/#home", isHash: true },
@@ -18,39 +19,79 @@ const Navbar = () => {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const { currentUser, loginUser, logoutUser, users, notifications, markNotificationAsRead } = useStore();
-  const [authMode, setAuthMode] = useState<"login" | "register" | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgotPassword" | null>(null);
   const [authForm, setAuthForm] = useState({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const userNotifications = currentUser ? notifications.filter(n => n.userId === currentUser.email || n.userId === currentUser.phone) : [];
   const unreadNotifications = userNotifications.filter(n => !n.isRead);
 
-  const handleAuthSubmit = (e: React.FormEvent) => {
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
+
+    if (authMode === "forgotPassword") {
+      try {
+        const res = await authAPI.forgotPassword({ email: authForm.email });
+        if (res.data.demoResetUrl && res.data.demoResetToken) {
+          alert(`DEMO MODE: Click OK to simulate clicking your password reset link!\n\nLink: ${res.data.demoResetUrl}`);
+          setAuthMode(null);
+          navigate(`/reset-password/${res.data.demoResetToken}`);
+        } else {
+          alert("Reset link sent! Please check your email.");
+          setAuthMode("login");
+        }
+      } catch (err: any) {
+        setLoginError(err.response?.data?.message || "An error occurred.");
+      }
+      return;
+    }
 
     if (!authForm.email || !authForm.password) return;
 
-    if (authMode === "register") {
-      if (!authForm.name || !authForm.phone) return;
-      if (authForm.password !== authForm.confirmPassword) {
-        alert("Passwords do not match!");
-        return;
+    try {
+      if (authMode === "register") {
+        if (!authForm.name || !authForm.phone) return;
+        if (authForm.password !== authForm.confirmPassword) {
+          setLoginError("Passwords do not match!");
+          return;
+        }
+
+        // Backend Register
+        const res = await authAPI.register({
+          name: authForm.name,
+          email: authForm.email,
+          phone: authForm.phone,
+          password: authForm.password,
+        });
+
+        // Alert user to check email (and provide demo link if available)
+        if (res.data.demoVerifyUrl && res.data.demoVerifyToken) {
+          alert(`DEMO MODE: Click OK to simulate clicking your email verification link!\n\nLink: ${res.data.demoVerifyUrl}`);
+          setAuthMode(null);
+          navigate(`/verify-email/${res.data.demoVerifyToken}`);
+        } else {
+          alert("Registration successful! Please check your email inbox to verify your account.");
+          setAuthMode("login");
+          setLoginError("Registration successful! Please check your email to verify before logging in.");
+        }
+      } else {
+        // Backend Login
+        const loginRes = await authAPI.login({
+          email: authForm.email,
+          password: authForm.password,
+        });
+
+        const { token, user } = loginRes.data;
+        localStorage.setItem("styloria-jwt-token", token);
+        loginUser(user);
+        setAuthMode(null);
       }
+
+      setAuthForm({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
+    } catch (err: any) {
+      setLoginError(err.response?.data?.message || "An error occurred during authentication.");
     }
-
-    let userName = authForm.name;
-    let userPhone = authForm.phone;
-    let userEmail = authForm.email;
-
-    if (authMode === "login") {
-      const existingUser = users.find(u => u.email === authForm.email || u.phone === authForm.email);
-      userName = existingUser?.name || authForm.email.split("@")[0] || "User";
-      userPhone = existingUser?.phone || "";
-      userEmail = existingUser?.email || authForm.email;
-    }
-
-    loginUser({ name: userName || "User", email: userEmail, phone: userPhone });
-    setAuthMode(null);
-    setAuthForm({ name: "", email: "", password: "", confirmPassword: "", phone: "" });
   };
 
   const renderNotifications = (isMobile = false) => {
@@ -133,7 +174,12 @@ const Navbar = () => {
                     }}
                     className="text-sm font-medium text-foreground flex items-center gap-2 hover:text-primary transition-colors focus:outline-none"
                   >
-                    <UserIcon size={18} /> Hi, {currentUser.name || "User"}
+                    {currentUser.profileImage ? (
+                      <img src={currentUser.profileImage} alt="Profile" className="w-6 h-6 rounded-full object-cover border border-primary/20" />
+                    ) : (
+                      <UserIcon size={18} />
+                    )}
+                    Hi, {currentUser.name || "User"}
                   </button>
                   <div id="user-dropdown" className="hidden absolute right-0 top-full mt-4 w-40 bg-background border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     <button onClick={() => {
@@ -216,7 +262,12 @@ const Navbar = () => {
                 {currentUser ? (
                   <div className="flex items-center justify-between py-3 px-4 border-t border-border mt-2">
                     <span className="text-sm font-medium text-foreground flex items-center gap-2">
-                      <UserIcon size={18} /> Hi, {currentUser.name || "User"}
+                      {currentUser.profileImage ? (
+                        <img src={currentUser.profileImage} alt="Profile" className="w-6 h-6 rounded-full object-cover border border-primary/20" />
+                      ) : (
+                        <UserIcon size={18} />
+                      )}
+                      Hi, {currentUser.name || "User"}
                     </span>
                     <div className="flex gap-3">
                       <button onClick={() => { navigate("/profile"); setOpen(false); }} className="text-primary text-sm font-medium">Profile</button>
@@ -259,7 +310,7 @@ const Navbar = () => {
                 <X size={20} />
               </button>
               <h2 className="text-2xl font-bold font-heading mb-6 text-center">
-                {authMode === "login" ? "Welcome Back" : "Create Account"}
+                {authMode === "login" ? "Welcome Back" : authMode === "register" ? "Create Account" : "Reset Password"}
               </h2>
               <form onSubmit={handleAuthSubmit} className="space-y-4">
                 {authMode === "register" && (
@@ -291,40 +342,51 @@ const Navbar = () => {
                     onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
                     className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
                   />
+                  {authMode === "forgotPassword" && <p className="text-xs text-muted-foreground mt-2">Enter your email and we'll send you a password reset link.</p>}
                 </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">Password</label>
-                  <input
-                    type="password" required value={authForm.password}
-                    onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
-                  />
-                  {authMode === "login" && (
-                    <div className="flex justify-end mt-2">
-                      <button type="button" onClick={() => alert("Note: This is a frontend demo. No actual email is sent, but in a real app, a password reset link would be emailed to you.")} className="text-sm text-primary font-medium hover:underline">
-                        Forgot your password?
-                      </button>
+                {authMode !== "forgotPassword" && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Password</label>
+                      <input
+                        type="password" required value={authForm.password}
+                        onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+                        className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      {authMode === "login" && (
+                        <div className="flex justify-end mt-2">
+                          <button type="button" onClick={() => setAuthMode("forgotPassword")} className="text-sm text-primary font-medium hover:underline">
+                            Forgot your password?
+                          </button>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                {authMode === "register" && (
-                  <div>
-                    <label className="text-sm font-medium mb-1.5 block">Confirm Password</label>
-                    <input
-                      type="password" required value={authForm.confirmPassword}
-                      onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
-                      className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                  </div>
+                    {authMode === "register" && (
+                      <div>
+                        <label className="text-sm font-medium mb-1.5 block">Confirm Password</label>
+                        <input
+                          type="password" required value={authForm.confirmPassword}
+                          onChange={(e) => setAuthForm({ ...authForm, confirmPassword: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-xl bg-background border border-input outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+                {loginError && (
+                  <p className="text-red-500 text-sm py-2 rounded-lg bg-red-50 px-3 mt-4 mb-2">{loginError}</p>
                 )}
                 <button type="submit" className="w-full py-3 rounded-xl gradient-primary text-primary-foreground font-semibold mt-4">
-                  {authMode === "login" ? "Sign In" : "Register"}
+                  {authMode === "login" ? "Sign In" : authMode === "register" ? "Register" : "Send Reset Link"}
                 </button>
               </form>
               <p className="text-center text-sm text-muted-foreground mt-6">
-                {authMode === "login" ? "Don't have an account?" : "Already have an account?"}
+                {authMode === "login" ? "Don't have an account?" : authMode === "register" ? "Already have an account?" : "Remember your password?"}
                 <button
-                  onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}
+                  onClick={() => {
+                    setAuthMode(authMode === "login" ? "register" : "login");
+                    setLoginError(null);
+                  }}
                   className="text-primary font-semibold ml-1 hover:underline"
                 >
                   {authMode === "login" ? "Sign up" : "Log in"}
