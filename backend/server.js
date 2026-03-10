@@ -4,12 +4,14 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+const { MongoMemoryServer } = require('mongodb-memory-server');
+const fs = require('fs');
+const path = require('path');
+
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-
-const { MongoMemoryServer } = require('mongodb-memory-server');
 
 const app = express();
 // Increase body-parser limits for Base64 image payload handling
@@ -22,16 +24,26 @@ app.use('/api/users', userRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/admin', adminRoutes);
 
-const PORT = 5001; // Port changed due to macOS ControlCenter using 5000
+const PORT = process.env.PORT || 5001;
+// Local Persistent Directory for MongoDB
+const dbPath = path.join(__dirname, 'mongodb_data');
+if (!fs.existsSync(dbPath)) {
+    fs.mkdirSync(dbPath, { recursive: true });
+}
 
 const startServer = async () => {
     try {
-        console.log("Spinning up MongoDB Memory Server...");
-        const mongoServer = await MongoMemoryServer.create();
+        console.log("Spinning up persistent local MongoDB Server...");
+        const mongoServer = await MongoMemoryServer.create({
+            instance: {
+                dbPath: dbPath,
+                storageEngine: 'wiredTiger'
+            }
+        });
         const mongoUri = mongoServer.getUri();
 
         await mongoose.connect(mongoUri);
-        console.log(`Connected successfully to local in-memory MongoDB at ${mongoUri}`);
+        console.log(`Connected successfully to persistent disk MongoDB at ${mongoUri}`);
 
         const User = require('./models/User');
         const adminExists = await User.findOne({ email: 'admin@styloria.com' });
@@ -49,7 +61,7 @@ const startServer = async () => {
 
         app.listen(PORT, () => console.log(`Backend Auth Server running stably on port ${PORT}`));
     } catch (err) {
-        console.error("Failed to start backend server or mongodb memory instance:", err);
+        console.error("Failed to start backend server or mongodb instance:", err);
     }
 };
 

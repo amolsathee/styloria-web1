@@ -52,6 +52,22 @@ export type Offer = {
     isMembership?: boolean;
 };
 
+export type BridalPackage = {
+    id: string;
+    name: string;
+    price: string;
+    tier: "silver" | "gold" | "platinum";
+    popular?: boolean;
+    features: string[];
+};
+
+export type Review = {
+    id: string;
+    name: string;
+    text: string;
+    rating: number;
+};
+
 export type User = {
     id?: string;
     name: string;
@@ -85,6 +101,14 @@ type StoreContextType = {
     addOffer: (offer: Omit<Offer, "id">) => void;
     removeOffer: (id: string) => void;
     updateOffer: (id: string, offer: Partial<Offer>) => void;
+    bridalPackages: BridalPackage[];
+    addBridalPackage: (pkg: Omit<BridalPackage, "id">) => void;
+    removeBridalPackage: (id: string) => void;
+    updateBridalPackage: (id: string, updatedFields: Partial<BridalPackage>) => void;
+    reviews: Review[];
+    addReview: (review: Omit<Review, "id">) => void;
+    removeReview: (id: string) => void;
+    updateReview: (id: string, updatedFields: Partial<Review>) => void;
     currentUser: User | null;
     users: User[];
     loginUser: (user: User) => void;
@@ -95,6 +119,66 @@ type StoreContextType = {
     notifications: AppNotification[];
     markNotificationAsRead: (id: string) => void;
 };
+
+const initialBridalPackages: BridalPackage[] = [
+    {
+        id: "b1",
+        name: "Silver Bridal",
+        price: "₹14,999",
+        tier: "silver",
+        features: ["Bridal Makeup", "Hairstyling", "Draping", "Nail Art", "Complimentary Trial"],
+    },
+    {
+        id: "b2",
+        name: "Gold Bridal",
+        price: "₹19,999",
+        tier: "gold",
+        popular: true,
+        features: ["Bridal Makeup", "Hairstyling", "Draping", "Nail Art", "Complimentary Trial", "Hair Spa", "Facial"],
+    },
+    {
+        id: "b3",
+        name: "Platinum Bridal",
+        price: "₹29,999",
+        tier: "platinum",
+        features: [
+            "Airbrush Bridal Makeup",
+            "Premium Hairstyling",
+            "Draping",
+            "Nail Extensions",
+            "2 Trial Sessions",
+            "Pre-Bridal Package",
+            "Skincare Routine",
+        ],
+    },
+];
+
+const initialReviews: Review[] = [
+  {
+    id: "r1",
+    name: "Priya Sharma",
+    text: "Absolutely loved my bridal makeup! The team at Styloria made me feel like a queen on my special day. Highly recommend their platinum package.",
+    rating: 5,
+  },
+  {
+    id: "r2",
+    name: "Ananya Patel",
+    text: "Best hair spa experience ever! My hair has never felt so silky and healthy. The ambiance is so luxurious and calming.",
+    rating: 5,
+  },
+  {
+    id: "r3",
+    name: "Meera Kulkarni",
+    text: "The hydra facial treatment was incredible. My skin was glowing for weeks! The staff is so professional and friendly.",
+    rating: 5,
+  },
+  {
+    id: "r4",
+    name: "Sneha Deshmukh",
+    text: "I'm a regular for their nail art services. Always creative, clean, and on-trend designs. Love this place!",
+    rating: 5,
+  },
+];
 
 const initialMedia: MediaItem[] = [
     { id: "1", src: galleryMakeup, type: "photo", label: "Bridal Glam Makeup", category: "Makeup" },
@@ -188,6 +272,16 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         return saved ? JSON.parse(saved) : initialOffers;
     });
 
+    const [bridalPackages, setBridalPackages] = useState<BridalPackage[]>(() => {
+        const saved = localStorage.getItem("styloria-bridal");
+        return saved ? JSON.parse(saved) : initialBridalPackages;
+    });
+
+    const [reviews, setReviews] = useState<Review[]>(() => {
+        const saved = localStorage.getItem("styloria-reviews");
+        return saved ? JSON.parse(saved) : initialReviews;
+    });
+
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
         const saved = localStorage.getItem("styloria-current-user");
         return saved ? JSON.parse(saved) : null;
@@ -220,6 +314,14 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         localStorage.setItem("styloria-offers", JSON.stringify(offers));
     }, [offers]);
+
+    useEffect(() => {
+        localStorage.setItem("styloria-bridal", JSON.stringify(bridalPackages));
+    }, [bridalPackages]);
+
+    useEffect(() => {
+        localStorage.setItem("styloria-reviews", JSON.stringify(reviews));
+    }, [reviews]);
 
     useEffect(() => {
         if (currentUser) {
@@ -357,6 +459,34 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         );
     };
 
+    const addBridalPackage = (pkg: Omit<BridalPackage, "id">) => {
+        setBridalPackages((prev) => [...prev, { ...pkg, id: Date.now().toString() }]);
+    };
+
+    const removeBridalPackage = (id: string) => {
+        setBridalPackages((prev) => prev.filter((b) => b.id !== id));
+    };
+
+    const updateBridalPackage = (id: string, updatedFields: Partial<BridalPackage>) => {
+        setBridalPackages((prev) =>
+            prev.map((b) => (b.id === id ? { ...b, ...updatedFields } : b))
+        );
+    };
+
+    const addReview = (review: Omit<Review, "id">) => {
+        setReviews((prev) => [...prev, { ...review, id: Date.now().toString() }]);
+    };
+
+    const removeReview = (id: string) => {
+        setReviews((prev) => prev.filter((r) => r.id !== id));
+    };
+
+    const updateReview = (id: string, updatedFields: Partial<Review>) => {
+        setReviews((prev) =>
+            prev.map((r) => (r.id === id ? { ...r, ...updatedFields } : r))
+        );
+    };
+
     const loginUser = (user: User) => {
         setCurrentUser(user);
         setUsers((prev) => {
@@ -367,7 +497,11 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         });
     };
 
-    const logoutUser = () => setCurrentUser(null);
+    const logoutUser = () => {
+        setCurrentUser(null);
+        localStorage.removeItem("styloria-jwt-token");
+        localStorage.removeItem("styloria-role");
+    };
 
     const updateUser = (email: string, name: string, phone?: string, profileImage?: string) => {
         setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, name, phone, profileImage: profileImage || u.profileImage } : u)));
@@ -399,6 +533,14 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
                 addOffer,
                 removeOffer,
                 updateOffer,
+                bridalPackages,
+                addBridalPackage,
+                removeBridalPackage,
+                updateBridalPackage,
+                reviews,
+                addReview,
+                removeReview,
+                updateReview,
                 currentUser,
                 users,
                 loginUser,

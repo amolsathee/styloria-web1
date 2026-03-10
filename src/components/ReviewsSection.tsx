@@ -1,33 +1,12 @@
 import { motion, useInView } from "framer-motion";
 import { useRef } from "react";
 import { Star, Quote } from "lucide-react";
-
-const reviews = [
-  {
-    name: "Priya Sharma",
-    text: "Absolutely loved my bridal makeup! The team at Styloria made me feel like a queen on my special day. Highly recommend their platinum package.",
-    rating: 5,
-  },
-  {
-    name: "Ananya Patel",
-    text: "Best hair spa experience ever! My hair has never felt so silky and healthy. The ambiance is so luxurious and calming.",
-    rating: 5,
-  },
-  {
-    name: "Meera Kulkarni",
-    text: "The hydra facial treatment was incredible. My skin was glowing for weeks! The staff is so professional and friendly.",
-    rating: 5,
-  },
-  {
-    name: "Sneha Deshmukh",
-    text: "I'm a regular for their nail art services. Always creative, clean, and on-trend designs. Love this place!",
-    rating: 5,
-  },
-];
+import { useStore } from "@/lib/store";
 
 const ReviewsSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
+  const { reviews } = useStore();
 
   return (
     <section className="section-padding bg-secondary/30" ref={ref}>

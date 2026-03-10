@@ -5,36 +5,6 @@ import { Crown, Check } from "lucide-react";
 import bridalImg from "@/assets/bridal-1.jpg";
 import { useStore } from "@/lib/store";
 
-export const bridalPackages = [
-  {
-    name: "Silver Bridal",
-    price: "₹14,999",
-    tier: "silver" as const,
-    features: ["Bridal Makeup", "Hairstyling", "Draping", "Nail Art", "Complimentary Trial"],
-  },
-  {
-    name: "Gold Bridal",
-    price: "₹19,999",
-    tier: "gold" as const,
-    popular: true,
-    features: ["Bridal Makeup", "Hairstyling", "Draping", "Nail Art", "Complimentary Trial", "Hair Spa", "Facial"],
-  },
-  {
-    name: "Platinum Bridal",
-    price: "₹29,999",
-    tier: "platinum" as const,
-    features: [
-      "Airbrush Bridal Makeup",
-      "Premium Hairstyling",
-      "Draping",
-      "Nail Extensions",
-      "2 Trial Sessions",
-      "Pre-Bridal Package",
-      "Skincare Routine",
-    ],
-  },
-];
-
 const tierColors = {
   silver: "from-gray-300 to-gray-400",
   gold: "from-amber-400 to-yellow-500",
@@ -44,7 +14,7 @@ const tierColors = {
 const BridalSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
-  const { setSelectedServiceToBook } = useStore();
+  const { setSelectedServiceToBook, bridalPackages } = useStore();
 
   return (
     <section id="bridal" className="section-padding bg-secondary/30 relative overflow-hidden" ref={ref}>

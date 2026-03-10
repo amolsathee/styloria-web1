@@ -2,7 +2,6 @@ import { motion, useInView } from "framer-motion";
 import { useRef, useState } from "react";
 import { Calendar, Clock, User, CheckCircle, Mail } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { bridalPackages } from "./BridalSection";
 import { bookingAPI } from "@/services/api";
 
 const beauticians = ["Any Available", "Pooja", "Sonali"];
@@ -10,7 +9,7 @@ const beauticians = ["Any Available", "Pooja", "Sonali"];
 const BookingSection = () => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-100px" });
-  const { categories, addBooking, offers, currentUser, selectedServiceToBook, setSelectedServiceToBook, bookings } = useStore();
+  const { categories, addBooking, offers, bridalPackages, currentUser, selectedServiceToBook, setSelectedServiceToBook, bookings } = useStore();
   const [submitted, setSubmitted] = useState(false);
   const [errorObj, setErrorObj] = useState<string | null>(null);
   const [submittedPhone, setSubmittedPhone] = useState("");

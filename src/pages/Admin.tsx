@@ -23,6 +23,14 @@ const Admin = () => {
         addOffer,
         removeOffer,
         updateOffer,
+        bridalPackages,
+        addBridalPackage,
+        removeBridalPackage,
+        updateBridalPackage,
+        reviews,
+        addReview,
+        removeReview,
+        updateReview,
         users,
         loginUser,
         logoutUser,
@@ -44,13 +52,27 @@ const Admin = () => {
     const [editBookingForm, setEditBookingForm] = useState({ date: "", time: "" });
     const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
+    const [editingBridalId, setEditingBridalId] = useState<string | null>(null);
+    const [editBridalForm, setEditBridalForm] = useState({ name: "", price: "", features: "" });
+    const [newBridal, setNewBridal] = useState({ name: "", price: "", features: "" });
+
+    const [newReview, setNewReview] = useState({ name: "", text: "", rating: 5 });
+
     useEffect(() => {
         const token = localStorage.getItem("styloria-jwt-token");
         const role = localStorage.getItem("styloria-role");
-        if (token && role === "admin") {
+        const storedUser = localStorage.getItem("styloria-current-user");
+
+        if (token && role === "admin" && storedUser) {
             setIsAuthenticated(true);
             fetchUsers();
             fetchBookings();
+        } else {
+            // Scrub any partially leftover or stale login variables
+            setIsAuthenticated(false);
+            localStorage.removeItem("styloria-jwt-token");
+            localStorage.removeItem("styloria-role");
+            localStorage.removeItem("styloria-current-user");
         }
     }, []);
 
@@ -58,8 +80,11 @@ const Admin = () => {
         try {
             const res = await bookingAPI.getAllBookings();
             setBackendBookings(res.data);
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to fetch bookings");
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                handleLogout();
+            }
         }
     };
 
@@ -67,8 +92,11 @@ const Admin = () => {
         try {
             const res = await userAPI.getAllUsers();
             setBackendUsers(res.data);
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to fetch users");
+            if (err.response?.status === 401 || err.response?.status === 403) {
+                handleLogout();
+            }
         }
     };
 
@@ -224,12 +252,14 @@ const Admin = () => {
                     </div>
 
                     <Tabs defaultValue="bookings" className="w-full">
-                        <TabsList className="grid w-full grid-cols-5 mb-8">
+                        <TabsList className="grid w-full grid-cols-6 mb-8 overflow-x-auto">
                             <TabsTrigger value="bookings">Bookings</TabsTrigger>
                             <TabsTrigger value="services">Services</TabsTrigger>
                             <TabsTrigger value="gallery">Gallery</TabsTrigger>
                             <TabsTrigger value="offers">Offers</TabsTrigger>
                             <TabsTrigger value="users">Users</TabsTrigger>
+                            <TabsTrigger value="bridal">Bridal</TabsTrigger>
+                            <TabsTrigger value="reviews">Reviews</TabsTrigger>
                         </TabsList>
 
                         {/* Bookings Tab */}
@@ -599,6 +629,138 @@ const Admin = () => {
                                         </table>
                                     </div>
                                 )}
+                            </div>
+                        </TabsContent>
+
+                        {/* Bridal Packages Tab */}
+                        <TabsContent value="bridal" className="space-y-6">
+                            <div className="glass-card p-6 rounded-2xl">
+                                <h2 className="text-xl font-semibold mb-4">Add New Bridal Package</h2>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!newBridal.name || !newBridal.price) return;
+                                    addBridalPackage({ 
+                                        name: newBridal.name, 
+                                        price: newBridal.price, 
+                                        features: newBridal.features.split(',').map(f => f.trim()).filter(Boolean),
+                                        tier: "silver"
+                                    });
+                                    setNewBridal({ name: "", price: "", features: "" });
+                                }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <input placeholder="Package Name" value={newBridal.name} onChange={(e) => setNewBridal({ ...newBridal, name: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                    <input placeholder="Price" value={newBridal.price} onChange={(e) => setNewBridal({ ...newBridal, price: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                    <textarea placeholder="Features (comma separated)" value={newBridal.features} onChange={(e) => setNewBridal({ ...newBridal, features: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2" rows={2} />
+                                    <button type="submit" className="sm:col-span-2 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2"><Plus size={18} /> Add Package</button>
+                                </form>
+                            </div>
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                {bridalPackages.map((pkg) => (
+                                    <div key={pkg.id} className="glass-card p-6 rounded-2xl relative">
+                                        {editingBridalId === pkg.id ? (
+                                            <div className="space-y-4">
+                                                <input
+                                                    value={editBridalForm.name}
+                                                    onChange={(e) => setEditBridalForm({ ...editBridalForm, name: e.target.value })}
+                                                    className="w-full px-3 py-2 border rounded-lg bg-background"
+                                                    placeholder="Package Name"
+                                                />
+                                                <input
+                                                    value={editBridalForm.price}
+                                                    onChange={(e) => setEditBridalForm({ ...editBridalForm, price: e.target.value })}
+                                                    className="w-full px-3 py-2 border rounded-lg bg-background"
+                                                    placeholder="Price"
+                                                />
+                                                <textarea
+                                                    value={editBridalForm.features}
+                                                    onChange={(e) => setEditBridalForm({ ...editBridalForm, features: e.target.value })}
+                                                    className="w-full px-3 py-2 border rounded-lg bg-background"
+                                                    rows={4}
+                                                    placeholder="Features (comma separated)"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            updateBridalPackage(pkg.id, {
+                                                                name: editBridalForm.name,
+                                                                price: editBridalForm.price,
+                                                                features: editBridalForm.features.split(',').map(f => f.trim()).filter(Boolean)
+                                                            });
+                                                            setEditingBridalId(null);
+                                                        }}
+                                                        className="flex-1 bg-green-500 text-white rounded-lg py-2 text-sm font-semibold hover:bg-green-600 transition-colors"
+                                                    >
+                                                        Save
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setEditingBridalId(null)}
+                                                        className="flex-1 bg-secondary text-foreground rounded-lg py-2 text-sm font-semibold hover:bg-secondary/80 transition-colors border"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="absolute top-4 right-4 flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingBridalId(pkg.id);
+                                                            setEditBridalForm({ name: pkg.name, price: pkg.price, features: pkg.features.join(', ') });
+                                                        }}
+                                                        className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                                                    >
+                                                        <Edit size={16} />
+                                                    </button>
+                                                    <button onClick={() => removeBridalPackage(pkg.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                                                </div>
+                                                <h3 className="text-xl font-bold pr-16">{pkg.name}</h3>
+                                                <p className="text-primary font-bold text-2xl my-2">{pkg.price}</p>
+                                                <div className="mt-4 space-y-2">
+                                                    <p className="text-sm font-semibold text-muted-foreground">Features:</p>
+                                                    <ul className="text-sm space-y-1">
+                                                        {pkg.features.map((f, idx) => (
+                                                            <li key={idx} className="flex items-center gap-2">
+                                                                <Check size={14} className="text-primary" /> {f}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </TabsContent>
+
+                        {/* Reviews Tab */}
+                        <TabsContent value="reviews" className="space-y-6">
+                            <div className="glass-card p-6 rounded-2xl">
+                                <h2 className="text-xl font-semibold mb-4">Add New Testimonial</h2>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (!newReview.name || !newReview.text) return;
+                                    addReview({ name: newReview.name, text: newReview.text, rating: newReview.rating });
+                                    setNewReview({ name: "", text: "", rating: 5 });
+                                }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <input placeholder="Client Name" value={newReview.name} onChange={(e) => setNewReview({ ...newReview, name: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                    <input type="number" min="1" max="5" placeholder="Rating (1-5)" value={newReview.rating} onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                    <textarea placeholder="Review Text" value={newReview.text} onChange={(e) => setNewReview({ ...newReview, text: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2" rows={3} required />
+                                    <button type="submit" className="sm:col-span-2 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2"><Plus size={18} /> Add Review</button>
+                                </form>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {reviews.map((r) => (
+                                    <div key={r.id} className="glass-card p-6 rounded-2xl relative">
+                                        <div className="absolute top-4 right-4 flex gap-2">
+                                            <button onClick={() => removeReview(r.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                        </div>
+                                        <h3 className="text-lg font-bold pr-8">{r.name}</h3>
+                                        <p className="text-amber-500 my-1">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</p>
+                                        <p className="text-sm text-muted-foreground italic">"{r.text}"</p>
+                                    </div>
+                                ))}
                             </div>
                         </TabsContent>
 
