@@ -74,6 +74,7 @@ export type User = {
     email: string;
     phone?: string;
     profileImage?: string;
+    role?: string;
 };
 
 export type AppNotification = {
