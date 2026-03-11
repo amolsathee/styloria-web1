@@ -1,7 +1,17 @@
 import axios from 'axios';
 
+// Use the window's hostname to allow local network testing from a mobile phone
+const getBaseURL = () => {
+    // If testing on a real live domain (like Netlify), and no live backend exists yet, 
+    // it will still use a fallback (or local). Eventually, put the real backend URL here.
+    if (window.location.hostname.includes('netlify.app')) {
+        return 'https://styloria-api.herokuapp.com/api'; // Placeholder for future real backend
+    }
+    return `http://${window.location.hostname}:5001/api`;
+};
+
 const api = axios.create({
-    baseURL: 'http://localhost:5001/api', // Backend running locally
+    baseURL: getBaseURL(), 
 });
 
 // Automatically inject JWT token from localStorage if valid
