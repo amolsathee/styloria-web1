@@ -9,6 +9,7 @@ import Offers from "./pages/Offers";
 import Gallery from "./pages/Gallery";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
+import Testimonials from "./pages/Testimonials";
 import NotFound from "./pages/NotFound";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
@@ -34,6 +35,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/offers" element={<Offers />} />
               <Route path="/gallery" element={<Gallery />} />
+              <Route path="/testimonials" element={<Testimonials />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/verify-email/:token" element={<VerifyEmail />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />

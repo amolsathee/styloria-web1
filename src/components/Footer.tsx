@@ -12,6 +12,7 @@ const Footer = () => (
           <Link to="/#services" className="hover:opacity-100 transition-opacity">Services</Link>
           <Link to="/#bridal" className="hover:opacity-100 transition-opacity">Bridal</Link>
           <Link to="/gallery" className="hover:opacity-100 transition-opacity">Gallery</Link>
+          <Link to="/testimonials" className="hover:opacity-100 transition-opacity">Testimonials</Link>
           <Link to="/offers" className="hover:opacity-100 transition-opacity">Offers</Link>
           <Link to="/#contact" className="hover:opacity-100 transition-opacity">Contact</Link>
         </div>

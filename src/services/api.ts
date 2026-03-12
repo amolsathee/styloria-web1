@@ -47,4 +47,16 @@ export const adminAPI = {
     sendFeedbackEmail: (data: { to: string, subject: string, text: string }) => api.post('/admin/send-email', data)
 };
 
+export const uploadAPI = {
+    uploadImage: (file: File) => {
+        const formData = new FormData();
+        formData.append('image', file);
+        return api.post('/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+    }
+};
+
 export default api;

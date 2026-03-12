@@ -66,6 +66,7 @@ export type Review = {
     name: string;
     text: string;
     rating: number;
+    showOnHomepage?: boolean;
 };
 
 export type User = {
@@ -88,6 +89,7 @@ export type AppNotification = {
 type StoreContextType = {
     media: MediaItem[];
     addMedia: (item: Omit<MediaItem, "id">) => void;
+    updateMedia: (id: string, updatedItem: Partial<Omit<MediaItem, "id">>) => void;
     removeMedia: (id: string) => void;
     categories: ServiceCategory[];
     addService: (categoryId: string, service: Omit<Service, "id">) => void;
@@ -160,24 +162,28 @@ const initialReviews: Review[] = [
     name: "Priya Sharma",
     text: "Absolutely loved my bridal makeup! The team at Styloria made me feel like a queen on my special day. Highly recommend their platinum package.",
     rating: 5,
+    showOnHomepage: true,
   },
   {
     id: "r2",
     name: "Ananya Patel",
     text: "Best hair spa experience ever! My hair has never felt so silky and healthy. The ambiance is so luxurious and calming.",
     rating: 5,
+    showOnHomepage: true,
   },
   {
     id: "r3",
     name: "Meera Kulkarni",
     text: "The hydra facial treatment was incredible. My skin was glowing for weeks! The staff is so professional and friendly.",
     rating: 5,
+    showOnHomepage: true,
   },
   {
     id: "r4",
     name: "Sneha Deshmukh",
     text: "I'm a regular for their nail art services. Always creative, clean, and on-trend designs. Love this place!",
     rating: 5,
+    showOnHomepage: true,
   },
 ];
 
@@ -342,6 +348,10 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
 
     const addMedia = (item: Omit<MediaItem, "id">) => {
         setMedia((prev) => [...prev, { ...item, id: Date.now().toString() }]);
+    };
+
+    const updateMedia = (id: string, updatedItem: Partial<Omit<MediaItem, "id">>) => {
+        setMedia((prev) => prev.map(m => m.id === id ? { ...m, ...updatedItem } : m));
     };
 
     const removeMedia = (id: string) => {
@@ -520,6 +530,7 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
             value={{
                 media,
                 addMedia,
+                updateMedia,
                 removeMedia,
                 categories,
                 addService,

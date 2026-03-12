@@ -24,7 +24,7 @@ const ReviewsSection = () => {
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {reviews.map((review, i) => (
+          {reviews.filter(r => r.showOnHomepage).map((review, i) => (
             <motion.div
               key={review.name}
               initial={{ opacity: 0, y: 30 }}
@@ -42,6 +42,11 @@ const ReviewsSection = () => {
               <p className="font-heading font-semibold">{review.name}</p>
             </motion.div>
           ))}
+        </div>
+        <div className="text-center mt-12">
+          <a href="/testimonials" className="inline-block mt-4 gradient-primary text-white px-8 py-3 rounded-full font-semibold hover:opacity-90 transition-opacity">
+            View All Testimonials
+          </a>
         </div>
       </div>
     </section>

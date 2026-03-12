@@ -3,13 +3,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/lib/store";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Trash2, Plus, Check, Lock, LogOut, Edit, X, Mail } from "lucide-react";
-import { userAPI, adminAPI, bookingAPI, authAPI } from "@/services/api";
+import { Trash2, Plus, Check, Lock, LogOut, Edit, X, Mail, Search } from "lucide-react";
+import { convertTo12HourFormat } from "@/lib/utils";
+import { userAPI, adminAPI, bookingAPI, authAPI, uploadAPI, default as api } from "@/services/api";
 
 const Admin = () => {
     const {
         media,
         addMedia,
+        updateMedia,
         removeMedia,
         categories,
         addService,
@@ -41,8 +43,16 @@ const Admin = () => {
     const [loginError, setLoginError] = useState("");
     const [backendUsers, setBackendUsers] = useState<any[]>([]);
     const [backendBookings, setBackendBookings] = useState<any[]>([]);
+    const [searchBookingQuery, setSearchBookingQuery] = useState("");
+    const [searchUserQuery, setSearchUserQuery] = useState("");
 
     const [newMedia, setNewMedia] = useState({ src: "", label: "", type: "photo" as "photo" | "video", category: "Makeup" });
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [editingMediaId, setEditingMediaId] = useState<string | null>(null);
+    const [editMediaForm, setEditMediaForm] = useState({ src: "", label: "", type: "photo" as "photo" | "video", category: "Makeup" });
+    const [editImageFile, setEditImageFile] = useState<File | null>(null);
+    const [isEditingUploading, setIsEditingUploading] = useState(false);
     const [newService, setNewService] = useState({ name: "", price: "", categoryId: "hair" });
     const [newOffer, setNewOffer] = useState({ title: "", price: "", originalPrice: "", desc: "", iconName: "Star", tag: "", tagColor: "bg-primary", isMembership: false });
     const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
@@ -56,8 +66,9 @@ const Admin = () => {
     const [editBridalForm, setEditBridalForm] = useState({ name: "", price: "", features: "" });
     const [newBridal, setNewBridal] = useState({ name: "", price: "", features: "" });
 
-    const [newReview, setNewReview] = useState({ name: "", text: "", rating: 5 });
-
+    const [newReview, setNewReview] = useState({ name: "", text: "", rating: 5, showOnHomepage: true });
+    const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+    const [editReviewForm, setEditReviewForm] = useState({ name: "", text: "", rating: 5, showOnHomepage: true });
     useEffect(() => {
         const token = localStorage.getItem("styloria-jwt-token");
         const role = localStorage.getItem("styloria-role");
@@ -138,15 +149,15 @@ const Admin = () => {
             fetchBookings();
         } catch (err: any) {
             if (loginForm.username === "admin@styloria.com" && loginForm.password === "admin123") {
-                 console.warn("Backend API Offline! Proceeding via Local Frontend Storage only.");
-                 localStorage.setItem("styloria-jwt-token", "offline-demo-token");
-                 localStorage.setItem("styloria-role", "admin");
-                 loginUser({ id: "offline", name: "Admin", email: "admin@styloria.com", phone: "1234567890", role: "admin" });
-                 setIsAuthenticated(true);
-                 fetchUsers();
-                 fetchBookings();
+                console.warn("Backend API Offline! Proceeding via Local Frontend Storage only.");
+                localStorage.setItem("styloria-jwt-token", "offline-demo-token");
+                localStorage.setItem("styloria-role", "admin");
+                loginUser({ id: "offline", name: "Admin", email: "admin@styloria.com", phone: "1234567890", role: "admin" });
+                setIsAuthenticated(true);
+                fetchUsers();
+                fetchBookings();
             } else {
-                 setLoginError(err.response?.data?.message || "Invalid credentials. Are you an admin?");
+                setLoginError(err.response?.data?.message || "Invalid credentials. Are you an admin?");
             }
         }
     };
@@ -159,11 +170,52 @@ const Admin = () => {
         setLoginForm({ username: "", password: "" });
     };
 
-    const handleAddMedia = (e: React.FormEvent) => {
+    const handleAddMedia = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMedia.src || !newMedia.label) return;
-        addMedia(newMedia);
-        setNewMedia({ src: "", label: "", type: "photo", category: "Makeup" });
+
+        if (editingMediaId) {
+            let imageUrl = editMediaForm.src;
+            if (editImageFile) {
+                setIsEditingUploading(true);
+                try {
+                    const uploadRes = await uploadAPI.uploadImage(editImageFile);
+                    const baseUrl = api.defaults.baseURL?.replace('/api', '') || '';
+                    imageUrl = `${baseUrl}${uploadRes.data.url}`;
+                } catch (err: any) {
+                    alert("Image upload failed: " + (err.response?.data?.message || err.message));
+                    setIsEditingUploading(false);
+                    return;
+                }
+                setIsEditingUploading(false);
+            }
+            if (!imageUrl || !editMediaForm.label) return;
+
+            updateMedia(editingMediaId, { ...editMediaForm, src: imageUrl });
+            setEditingMediaId(null);
+            setEditMediaForm({ src: "", label: "", type: "photo", category: "Makeup" });
+            setEditImageFile(null);
+        } else {
+            let imageUrl = newMedia.src;
+            if (imageFile) {
+                setIsUploading(true);
+                try {
+                    const uploadRes = await uploadAPI.uploadImage(imageFile);
+                    const baseUrl = api.defaults.baseURL?.replace('/api', '') || '';
+                    imageUrl = `${baseUrl}${uploadRes.data.url}`;
+                } catch (err: any) {
+                    alert("Image upload failed: " + (err.response?.data?.message || err.message));
+                    setIsUploading(false);
+                    return;
+                }
+                setIsUploading(false);
+            }
+
+            if (!imageUrl || !newMedia.label) return;
+
+            addMedia({ ...newMedia, src: imageUrl });
+            setNewMedia({ src: "", label: "", type: "photo", category: "Makeup" });
+            setImageFile(null);
+        }
     };
 
     const handleAddService = (e: React.FormEvent) => {
@@ -252,7 +304,7 @@ const Admin = () => {
         <div className="min-h-screen bg-background">
             <Navbar />
             <div className="pt-28 pb-16 px-4">
-                <div className="container mx-auto max-w-5xl">
+                <div className="container mx-auto">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
                         <h1 className="text-3xl font-heading font-bold">Admin Dashboard</h1>
                         <button
@@ -263,519 +315,631 @@ const Admin = () => {
                         </button>
                     </div>
 
-                    <Tabs defaultValue="bookings" className="w-full">
-                        <TabsList className="grid w-full grid-cols-6 mb-8 overflow-x-auto">
-                            <TabsTrigger value="bookings">Bookings</TabsTrigger>
-                            <TabsTrigger value="services">Services</TabsTrigger>
-                            <TabsTrigger value="gallery">Gallery</TabsTrigger>
-                            <TabsTrigger value="offers">Offers</TabsTrigger>
-                            <TabsTrigger value="users">Users</TabsTrigger>
-                            <TabsTrigger value="bridal">Bridal</TabsTrigger>
-                            <TabsTrigger value="reviews">Reviews</TabsTrigger>
-                        </TabsList>
+                    <Tabs defaultValue="bookings" className="w-full flex flex-col md:flex-row gap-6">
+                        <div className="w-full md:w-64 shrink-0">
+                            <TabsList className="flex flex-col h-auto w-full items-stretch justify-start bg-secondary/50 p-2 rounded-xl sticky top-24">
+                                <TabsTrigger value="bookings" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Bookings</TabsTrigger>
+                                <TabsTrigger value="services" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Services</TabsTrigger>
+                                <TabsTrigger value="gallery" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Gallery</TabsTrigger>
+                                <TabsTrigger value="offers" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Offers</TabsTrigger>
+                                <TabsTrigger value="users" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Users</TabsTrigger>
+                                <TabsTrigger value="bridal" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Bridal</TabsTrigger>
+                                <TabsTrigger value="reviews" className="justify-start px-4 py-3 text-left data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg rounded-lg mb-1 transition-all">Testimonials</TabsTrigger>
+                            </TabsList>
+                        </div>
 
-                        {/* Bookings Tab */}
-                        <TabsContent value="bookings" className="space-y-4">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Manage Bookings</h2>
-                                {backendBookings.length === 0 ? (
-                                    <p className="text-muted-foreground">No bookings yet.</p>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="border-b border-border/50 text-muted-foreground">
-                                                    <th className="p-3 font-medium">Name</th>
-                                                    <th className="p-3 font-medium">Phone</th>
-                                                    <th className="p-3 font-medium">Service</th>
-                                                    <th className="p-3 font-medium">Date & Time</th>
-                                                    <th className="p-3 font-medium">Beautician</th>
-                                                    <th className="p-3 font-medium">Status</th>
-                                                    <th className="p-3 font-medium text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {backendBookings.map((b) => (
-                                                    <tr key={b._id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
-                                                        <td className="p-3 font-medium">{b.name}</td>
-                                                        <td className="p-3 text-muted-foreground">{b.phone}</td>
-                                                        <td className="p-3">{b.service}</td>
-                                                        <td className="p-3">
-                                                            {editingBookingId === b.id ? (
-                                                                <div className="flex gap-2 min-w-[200px]">
-                                                                    <input type="date" value={editBookingForm.date} onChange={e => setEditBookingForm({ ...editBookingForm, date: e.target.value })} className="border rounded px-2 w-full text-sm bg-background border-input" />
-                                                                    <input type="time" value={editBookingForm.time} onChange={e => setEditBookingForm({ ...editBookingForm, time: e.target.value })} className="border rounded px-2 w-full text-sm bg-background border-input" />
-                                                                </div>
-                                                            ) : (
-                                                                <span className="whitespace-nowrap">{new Date(b.date).toLocaleDateString()} at {b.time}</span>
-                                                            )}
-                                                        </td>
-                                                        <td className="p-3">{b.beautician}</td>
-                                                        <td className="p-3">
-                                                            <span
-                                                                className={`px-3 py-1 text-xs font-semibold rounded-full ${b.status === "Confirmed"
-                                                                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                                                    : b.status === "Declined" || b.status === "Cancelled"
-                                                                        ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                                                                        : b.status === "Pending"
-                                                                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                                                            : "bg-secondary text-secondary-foreground"
-                                                                    }`}
-                                                            >
-                                                                {b.status}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-3">
-                                                            <div className="flex items-center justify-end gap-2">
-                                                                {editingBookingId === b._id ? (
-                                                                    <>
-                                                                        <button onClick={() => { updateBooking(b._id, editBookingForm.date, editBookingForm.time); setEditingBookingId(null); }} className="text-green-600 hover:text-green-700 bg-green-100 p-2 rounded-full transition-colors" title="Save Booking">
-                                                                            <Check size={16} />
-                                                                        </button>
-                                                                        <button onClick={() => setEditingBookingId(null)} className="text-red-500 bg-red-100 p-2 rounded-full transition-colors" title="Cancel">
-                                                                            <X size={16} />
-                                                                        </button>
-                                                                    </>
+                        <div className="flex-1 w-full min-w-0">
+
+                            {/* Bookings Tab */}
+                            <TabsContent value="bookings" className="space-y-4 m-0">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                        <h2 className="text-xl font-semibold">Manage Bookings</h2>
+                                        <div className="relative w-full sm:w-64">
+                                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search by name, phone or status..."
+                                                value={searchBookingQuery}
+                                                onChange={(e) => setSearchBookingQuery(e.target.value)}
+                                                className="w-full pl-9 pr-4 py-2 rounded-xl border bg-background text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    {backendBookings.filter(b => b.name?.toLowerCase().includes(searchBookingQuery.toLowerCase()) || b.phone?.includes(searchBookingQuery) || b.status?.toLowerCase().includes(searchBookingQuery.toLowerCase())).length === 0 ? (
+                                        <p className="text-muted-foreground">No bookings yet.</p>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-border/50 text-muted-foreground">
+                                                        <th className="p-3 font-medium">Name</th>
+                                                        <th className="p-3 font-medium">Phone</th>
+                                                        <th className="p-3 font-medium">Service</th>
+                                                        <th className="p-3 font-medium">Date & Time</th>
+                                                        <th className="p-3 font-medium">Beautician</th>
+                                                        <th className="p-3 font-medium">Status</th>
+                                                        <th className="p-3 font-medium text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {backendBookings.filter(b => b.name?.toLowerCase().includes(searchBookingQuery.toLowerCase()) || b.phone?.includes(searchBookingQuery) || b.status?.toLowerCase().includes(searchBookingQuery.toLowerCase())).map((b) => (
+                                                        <tr key={b._id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
+                                                            <td className="p-3 font-medium">{b.name}</td>
+                                                            <td className="p-3 text-muted-foreground">{b.phone}</td>
+                                                            <td className="p-3">{b.service}</td>
+                                                            <td className="p-3">
+                                                                {editingBookingId === b.id ? (
+                                                                    <div className="flex gap-2 min-w-[200px]">
+                                                                        <input type="date" value={editBookingForm.date} onChange={e => setEditBookingForm({ ...editBookingForm, date: e.target.value })} className="border rounded px-2 w-full text-sm bg-background border-input" />
+                                                                        <input type="time" value={editBookingForm.time} onChange={e => setEditBookingForm({ ...editBookingForm, time: e.target.value })} className="border rounded px-2 w-full text-sm bg-background border-input" />
+                                                                    </div>
                                                                 ) : (
-                                                                    <button onClick={() => { setEditingBookingId(b._id); setEditBookingForm({ date: b.date, time: b.time }); }} className="text-blue-600 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Edit Booking Date/Time">
-                                                                        <Edit size={16} />
-                                                                    </button>
+                                                                    <span className="whitespace-nowrap">{new Date(b.date).toLocaleDateString()} at {convertTo12HourFormat(b.time)}</span>
                                                                 )}
-                                                                {b.status === "Pending" && (
-                                                                    <>
-                                                                        <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Confirmed"); fetchBookings(); }} className="text-green-600 hover:text-green-700 bg-green-100 hover:bg-green-200 p-2 rounded-full transition-colors" title="Confirm Booking">
-                                                                            <Check size={16} />
+                                                            </td>
+                                                            <td className="p-3">{b.beautician}</td>
+                                                            <td className="p-3">
+                                                                <span
+                                                                    className={`px-3 py-1 text-xs font-semibold rounded-full ${b.status === "Confirmed"
+                                                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                                                        : b.status === "Declined" || b.status === "Cancelled"
+                                                                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                                                            : b.status === "Pending"
+                                                                                ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                                                                : "bg-secondary text-secondary-foreground"
+                                                                        }`}
+                                                                >
+                                                                    {b.status}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    {editingBookingId === b._id ? (
+                                                                        <>
+                                                                            <button onClick={() => { updateBooking(b._id, editBookingForm.date, editBookingForm.time); setEditingBookingId(null); }} className="text-green-600 hover:text-green-700 bg-green-100 p-2 rounded-full transition-colors" title="Save Booking">
+                                                                                <Check size={16} />
+                                                                            </button>
+                                                                            <button onClick={() => setEditingBookingId(null)} className="text-red-500 bg-red-100 p-2 rounded-full transition-colors" title="Cancel">
+                                                                                <X size={16} />
+                                                                            </button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <button onClick={() => { setEditingBookingId(b._id); setEditBookingForm({ date: b.date, time: b.time }); }} className="text-blue-600 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Edit Booking Date/Time">
+                                                                            <Edit size={16} />
                                                                         </button>
-                                                                        <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Declined"); fetchBookings(); }} className="text-red-600 hover:text-red-700 bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors" title="Decline Booking">
-                                                                            <X size={16} />
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>
-                        </TabsContent>
-
-                        {/* Services Tab */}
-                        <TabsContent value="services" className="space-y-6">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Add New Service</h2>
-                                <form onSubmit={handleAddService} className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                                    <input
-                                        placeholder="Service Name"
-                                        value={newService.name}
-                                        onChange={(e) => setNewService({ ...newService, name: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                        required
-                                    />
-                                    <input
-                                        placeholder="Price (e.g. ₹999)"
-                                        value={newService.price}
-                                        onChange={(e) => setNewService({ ...newService, price: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                        required
-                                    />
-                                    <select
-                                        value={newService.categoryId}
-                                        onChange={(e) => setNewService({ ...newService, categoryId: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                    >
-                                        {categories.map((c) => (
-                                            <option key={c.id} value={c.id}>{c.label}</option>
-                                        ))}
-                                    </select>
-                                    <button type="submit" className="gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2">
-                                        <Plus size={18} /> Add
-                                    </button>
-                                </form>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {categories.map((c) => (
-                                    <div key={c.id} className="glass-card p-6 rounded-2xl">
-                                        <h3 className="text-lg font-bold mb-4">{c.label}</h3>
-                                        <ul className="space-y-3">
-                                            {c.services.map((s) => (
-                                                <li key={s.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
-                                                    <div>
-                                                        <p className="font-medium">{s.name}</p>
-                                                        {editingServiceId === s.id ? (
-                                                            <div className="flex flex-col gap-2 mt-1">
-                                                                <input
-                                                                    className="border border-input rounded-md px-2 py-0.5 text-sm bg-background w-full max-w-[150px]"
-                                                                    value={editServiceForm.name}
-                                                                    onChange={(e) => setEditServiceForm({ ...editServiceForm, name: e.target.value })}
-                                                                />
-                                                                <div className="flex items-center gap-2">
-                                                                    <input
-                                                                        className="border border-input rounded-md px-2 py-0.5 text-sm w-24 bg-background"
-                                                                        value={editServiceForm.price}
-                                                                        onChange={(e) => setEditServiceForm({ ...editServiceForm, price: e.target.value })}
-                                                                    />
-                                                                    <button
-                                                                        onClick={() => handleSaveEditService(c.id, s.id)}
-                                                                        className="text-green-600 bg-green-100 p-1 rounded-md"
-                                                                    >
-                                                                        <Check size={14} />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => setEditingServiceId(null)}
-                                                                        className="text-red-500 bg-red-100 p-1 rounded-md"
-                                                                    >
-                                                                        <Trash2 size={14} />
-                                                                    </button>
+                                                                    )}
+                                                                    {b.status === "Pending" && (
+                                                                        <>
+                                                                            <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Confirmed"); fetchBookings(); }} className="text-green-600 hover:text-green-700 bg-green-100 hover:bg-green-200 p-2 rounded-full transition-colors" title="Confirm Booking">
+                                                                                <Check size={16} />
+                                                                            </button>
+                                                                            <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Declined"); fetchBookings(); }} className="text-red-600 hover:text-red-700 bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors" title="Decline Booking">
+                                                                                <X size={16} />
+                                                                            </button>
+                                                                        </>
+                                                                    )}
                                                                 </div>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-primary font-semibold text-sm cursor-pointer hover:underline" onClick={() => {
-                                                                setEditingServiceId(s.id);
-                                                                setEditServiceForm({ name: s.name, price: s.price });
-                                                            }}>
-                                                                {s.price} <Edit size={12} className="inline ml-1" />
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <button
-                                                        onClick={() => removeService(c.id, s.id)}
-                                                        className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                                                    >
-                                                        <Trash2 size={16} />
-                                                    </button>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                ))}
-                            </div>
-                        </TabsContent>
-
-                        {/* Gallery Tab */}
-                        <TabsContent value="gallery" className="space-y-6">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Add New Media</h2>
-                                <form onSubmit={handleAddMedia} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                                    <input
-                                        placeholder="Image URL"
-                                        value={newMedia.src}
-                                        onChange={(e) => setNewMedia({ ...newMedia, src: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background lg:col-span-2"
-                                        required
-                                    />
-                                    <input
-                                        placeholder="Label / Title"
-                                        value={newMedia.label}
-                                        onChange={(e) => setNewMedia({ ...newMedia, label: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                        required
-                                    />
-                                    <select
-                                        value={newMedia.category}
-                                        onChange={(e) => setNewMedia({ ...newMedia, category: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                    >
-                                        {["Makeup", "Bridal", "Hair", "Nails", "Skincare", "Studio"].map((opt) => (
-                                            <option key={opt} value={opt}>{opt}</option>
-                                        ))}
-                                    </select>
-                                    <button type="submit" className="gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2">
-                                        <Plus size={18} /> Add
-                                    </button>
-                                </form>
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                                {media.map((m) => (
-                                    <div key={m.id} className="relative group rounded-xl overflow-hidden aspect-square border">
-                                        <img src={m.src} alt={m.label} className="w-full h-full object-cover" />
-                                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <button
-                                                onClick={() => removeMedia(m.id)}
-                                                className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
-                                            >
-                                                <Trash2 size={20} />
-                                            </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </TabsContent>
+                                    )}
+                                </div>
+                            </TabsContent>
 
-                        {/* Offers Tab */}
-                        <TabsContent value="offers" className="space-y-6">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Add New Offer / Membership</h2>
-                                <form onSubmit={handleAddOffer} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <input
-                                        placeholder="Title (e.g. Summer Glow)"
-                                        value={newOffer.title}
-                                        onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                        required
-                                    />
-                                    <input
-                                        placeholder="Price (e.g. ₹2,499)"
-                                        value={newOffer.price}
-                                        onChange={(e) => setNewOffer({ ...newOffer, price: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                        required
-                                    />
-                                    <input
-                                        placeholder="Original Price (optional)"
-                                        value={newOffer.originalPrice}
-                                        onChange={(e) => setNewOffer({ ...newOffer, originalPrice: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                    />
-                                    <input
-                                        placeholder="Tag (e.g. Summer Special)"
-                                        value={newOffer.tag}
-                                        onChange={(e) => setNewOffer({ ...newOffer, tag: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background"
-                                    />
-                                    <textarea
-                                        placeholder="Description"
-                                        value={newOffer.desc}
-                                        onChange={(e) => setNewOffer({ ...newOffer, desc: e.target.value })}
-                                        className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2"
-                                        rows={2}
-                                    />
-                                    <div className="flex items-center gap-2">
+                            {/* Services Tab */}
+                            <TabsContent value="services" className="space-y-6">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <h2 className="text-xl font-semibold mb-4">Add New Service</h2>
+                                    <form onSubmit={handleAddService} className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                                         <input
-                                            type="checkbox"
-                                            id="isMembership"
-                                            checked={newOffer.isMembership}
-                                            onChange={(e) => setNewOffer({ ...newOffer, isMembership: e.target.checked })}
-                                            className="w-4 h-4"
+                                            placeholder="Service Name"
+                                            value={newService.name}
+                                            onChange={(e) => setNewService({ ...newService, name: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                            required
                                         />
-                                        <label htmlFor="isMembership" className="text-sm">Is this a Membership? (Shows on homepage)</label>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row gap-3 sm:col-span-2">
-                                        <button type="submit" className="flex-1 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2">
-                                            {editingOfferId ? <><Check size={18} /> Update Offer</> : <><Plus size={18} /> Add Offer</>}
+                                        <input
+                                            placeholder="Price (e.g. ₹999)"
+                                            value={newService.price}
+                                            onChange={(e) => setNewService({ ...newService, price: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                            required
+                                        />
+                                        <select
+                                            value={newService.categoryId}
+                                            onChange={(e) => setNewService({ ...newService, categoryId: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                        >
+                                            {categories.map((c) => (
+                                                <option key={c.id} value={c.id}>{c.label}</option>
+                                            ))}
+                                        </select>
+                                        <button type="submit" className="gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2">
+                                            <Plus size={18} /> Add
                                         </button>
-                                        {editingOfferId && (
-                                            <button type="button" onClick={() => { setEditingOfferId(null); setNewOffer({ title: "", price: "", originalPrice: "", desc: "", iconName: "Star", tag: "", tagColor: "bg-primary", isMembership: false }); }} className="flex-1 border border-input bg-secondary text-foreground hover:bg-secondary/50 rounded-xl py-2 flex items-center justify-center gap-2 transition-colors">
-                                                Cancel
-                                            </button>
-                                        )}
-                                    </div>
-                                </form>
-                            </div>
+                                    </form>
+                                </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {offers.map((o) => (
-                                    <div key={o.id} className="glass-card p-6 rounded-2xl relative">
-                                        <div className="absolute top-4 right-4 flex gap-2">
-                                            <button
-                                                onClick={() => {
-                                                    setEditingOfferId(o.id);
-                                                    setNewOffer({ title: o.title, price: o.price, originalPrice: o.originalPrice || "", desc: o.desc || "", iconName: o.iconName || "Star", tag: o.tag || "", tagColor: o.tagColor || "bg-primary", isMembership: o.isMembership || false });
-                                                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                }}
-                                                className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                                            >
-                                                <Edit size={16} />
-                                            </button>
-                                            <button
-                                                onClick={() => removeOffer(o.id)}
-                                                className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </div>
-                                        <h3 className="text-lg font-bold pr-8">{o.title}</h3>
-                                        <p className="text-primary font-semibold text-xl my-2">{o.price} {o.originalPrice && <span className="text-muted-foreground line-through text-sm">{o.originalPrice}</span>}</p>
-                                        <p className="text-sm text-muted-foreground mb-3">{o.desc}</p>
-                                        {o.tag && <span className="text-xs bg-secondary px-2 py-1 rounded inline-block mb-2">{o.tag}</span>}
-                                        <p className="text-xs font-medium text-amber-600">{o.isMembership ? "Membership (Homepage)" : "Standard Offer"}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </TabsContent>
-
-                        {/* Users Tab */}
-                        <TabsContent value="users" className="space-y-4">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Registered Users</h2>
-                                {backendUsers.length === 0 ? (
-                                    <p className="text-muted-foreground">No users registered yet.</p>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="border-b border-border/50 text-muted-foreground">
-                                                    <th className="p-3 font-medium">Name</th>
-                                                    <th className="p-3 font-medium">Email Address</th>
-                                                    <th className="p-3 font-medium">Phone Number</th>
-                                                    <th className="p-3 font-medium text-right">Actions</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {backendUsers.map((u, i) => (
-                                                    <tr key={u._id || i} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
-                                                        <td className="p-3 font-medium flex items-center gap-2">
-                                                            {u.profileImage ? (
-                                                                <img src={u.profileImage} alt="Profile" className="w-8 h-8 rounded-full object-cover shrink-0" />
-                                                            ) : (
-                                                                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
-                                                                    {u.name.charAt(0).toUpperCase()}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {categories.map((c) => (
+                                        <div key={c.id} className="glass-card p-6 rounded-2xl">
+                                            <h3 className="text-lg font-bold mb-4">{c.label}</h3>
+                                            <ul className="space-y-3">
+                                                {c.services.map((s) => (
+                                                    <li key={s.id} className="flex items-center justify-between border-b pb-2 last:border-0 last:pb-0">
+                                                        <div>
+                                                            <p className="font-medium">{s.name}</p>
+                                                            {editingServiceId === s.id ? (
+                                                                <div className="flex flex-col gap-2 mt-1">
+                                                                    <input
+                                                                        className="border border-input rounded-md px-2 py-0.5 text-sm bg-background w-full max-w-[150px]"
+                                                                        value={editServiceForm.name}
+                                                                        onChange={(e) => setEditServiceForm({ ...editServiceForm, name: e.target.value })}
+                                                                    />
+                                                                    <div className="flex items-center gap-2">
+                                                                        <input
+                                                                            className="border border-input rounded-md px-2 py-0.5 text-sm w-24 bg-background"
+                                                                            value={editServiceForm.price}
+                                                                            onChange={(e) => setEditServiceForm({ ...editServiceForm, price: e.target.value })}
+                                                                        />
+                                                                        <button
+                                                                            onClick={() => handleSaveEditService(c.id, s.id)}
+                                                                            className="text-green-600 bg-green-100 p-1 rounded-md"
+                                                                        >
+                                                                            <Check size={14} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setEditingServiceId(null)}
+                                                                            className="text-red-500 bg-red-100 p-1 rounded-md"
+                                                                        >
+                                                                            <Trash2 size={14} />
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
+                                                            ) : (
+                                                                <span className="text-primary font-semibold text-sm cursor-pointer hover:underline" onClick={() => {
+                                                                    setEditingServiceId(s.id);
+                                                                    setEditServiceForm({ name: s.name, price: s.price });
+                                                                }}>
+                                                                    {s.price} <Edit size={12} className="inline ml-1" />
+                                                                </span>
                                                             )}
-                                                            {u.name}
-                                                        </td>
-                                                        <td className="p-3 text-muted-foreground">{u.email}</td>
-                                                        <td className="p-3 text-muted-foreground">{u.phone || "-"}</td>
-                                                        <td className="p-3 text-right">
-                                                            <button onClick={() => handleSendFeedbackEmail(u.email)} className="text-sm bg-blue-100/50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ml-auto">
-                                                                <Mail size={14} /> Send Reply
-                                                            </button>
-                                                        </td>
-                                                    </tr>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => removeService(c.id, s.id)}
+                                                            className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </li>
                                                 ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
-                            </div>
-                        </TabsContent>
-
-                        {/* Bridal Packages Tab */}
-                        <TabsContent value="bridal" className="space-y-6">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Add New Bridal Package</h2>
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    if (!newBridal.name || !newBridal.price) return;
-                                    addBridalPackage({ 
-                                        name: newBridal.name, 
-                                        price: newBridal.price, 
-                                        features: newBridal.features.split(',').map(f => f.trim()).filter(Boolean),
-                                        tier: "silver"
-                                    });
-                                    setNewBridal({ name: "", price: "", features: "" });
-                                }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <input placeholder="Package Name" value={newBridal.name} onChange={(e) => setNewBridal({ ...newBridal, name: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
-                                    <input placeholder="Price" value={newBridal.price} onChange={(e) => setNewBridal({ ...newBridal, price: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
-                                    <textarea placeholder="Features (comma separated)" value={newBridal.features} onChange={(e) => setNewBridal({ ...newBridal, features: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2" rows={2} />
-                                    <button type="submit" className="sm:col-span-2 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2"><Plus size={18} /> Add Package</button>
-                                </form>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                {bridalPackages.map((pkg) => (
-                                    <div key={pkg.id} className="glass-card p-6 rounded-2xl relative">
-                                        {editingBridalId === pkg.id ? (
-                                            <div className="space-y-4">
-                                                <input
-                                                    value={editBridalForm.name}
-                                                    onChange={(e) => setEditBridalForm({ ...editBridalForm, name: e.target.value })}
-                                                    className="w-full px-3 py-2 border rounded-lg bg-background"
-                                                    placeholder="Package Name"
-                                                />
-                                                <input
-                                                    value={editBridalForm.price}
-                                                    onChange={(e) => setEditBridalForm({ ...editBridalForm, price: e.target.value })}
-                                                    className="w-full px-3 py-2 border rounded-lg bg-background"
-                                                    placeholder="Price"
-                                                />
-                                                <textarea
-                                                    value={editBridalForm.features}
-                                                    onChange={(e) => setEditBridalForm({ ...editBridalForm, features: e.target.value })}
-                                                    className="w-full px-3 py-2 border rounded-lg bg-background"
-                                                    rows={4}
-                                                    placeholder="Features (comma separated)"
-                                                />
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            updateBridalPackage(pkg.id, {
-                                                                name: editBridalForm.name,
-                                                                price: editBridalForm.price,
-                                                                features: editBridalForm.features.split(',').map(f => f.trim()).filter(Boolean)
-                                                            });
-                                                            setEditingBridalId(null);
-                                                        }}
-                                                        className="flex-1 bg-green-500 text-white rounded-lg py-2 text-sm font-semibold hover:bg-green-600 transition-colors"
-                                                    >
-                                                        Save
-                                                    </button>
-                                                    <button
-                                                        onClick={() => setEditingBridalId(null)}
-                                                        className="flex-1 bg-secondary text-foreground rounded-lg py-2 text-sm font-semibold hover:bg-secondary/80 transition-colors border"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <div className="absolute top-4 right-4 flex gap-2">
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingBridalId(pkg.id);
-                                                            setEditBridalForm({ name: pkg.name, price: pkg.price, features: pkg.features.join(', ') });
-                                                        }}
-                                                        className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"
-                                                    >
-                                                        <Edit size={16} />
-                                                    </button>
-                                                    <button onClick={() => removeBridalPackage(pkg.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16}/></button>
-                                                </div>
-                                                <h3 className="text-xl font-bold pr-16">{pkg.name}</h3>
-                                                <p className="text-primary font-bold text-2xl my-2">{pkg.price}</p>
-                                                <div className="mt-4 space-y-2">
-                                                    <p className="text-sm font-semibold text-muted-foreground">Features:</p>
-                                                    <ul className="text-sm space-y-1">
-                                                        {pkg.features.map((f, idx) => (
-                                                            <li key={idx} className="flex items-center gap-2">
-                                                                <Check size={14} className="text-primary" /> {f}
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </TabsContent>
-
-                        {/* Reviews Tab */}
-                        <TabsContent value="reviews" className="space-y-6">
-                            <div className="glass-card p-6 rounded-2xl">
-                                <h2 className="text-xl font-semibold mb-4">Add New Testimonial</h2>
-                                <form onSubmit={(e) => {
-                                    e.preventDefault();
-                                    if (!newReview.name || !newReview.text) return;
-                                    addReview({ name: newReview.name, text: newReview.text, rating: newReview.rating });
-                                    setNewReview({ name: "", text: "", rating: 5 });
-                                }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <input placeholder="Client Name" value={newReview.name} onChange={(e) => setNewReview({ ...newReview, name: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
-                                    <input type="number" min="1" max="5" placeholder="Rating (1-5)" value={newReview.rating} onChange={(e) => setNewReview({ ...newReview, rating: Number(e.target.value) })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
-                                    <textarea placeholder="Review Text" value={newReview.text} onChange={(e) => setNewReview({ ...newReview, text: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2" rows={3} required />
-                                    <button type="submit" className="sm:col-span-2 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2"><Plus size={18} /> Add Review</button>
-                                </form>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {reviews.map((r) => (
-                                    <div key={r.id} className="glass-card p-6 rounded-2xl relative">
-                                        <div className="absolute top-4 right-4 flex gap-2">
-                                            <button onClick={() => removeReview(r.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                            </ul>
                                         </div>
-                                        <h3 className="text-lg font-bold pr-8">{r.name}</h3>
-                                        <p className="text-amber-500 my-1">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</p>
-                                        <p className="text-sm text-muted-foreground italic">"{r.text}"</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </TabsContent>
+                                    ))}
+                                </div>
+                            </TabsContent>
 
+                            {/* Gallery Tab */}
+                            <TabsContent value="gallery" className="space-y-6">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <h2 className="text-xl font-semibold mb-4">{editingMediaId ? "Edit Media" : "Add New Media"}</h2>
+                                    <form onSubmit={handleAddMedia} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-center">
+                                        <div className="lg:col-span-2 relative">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                onChange={(e) => {
+                                                    if (editingMediaId) {
+                                                        setEditImageFile(e.target.files ? e.target.files[0] : null);
+                                                    } else {
+                                                        setImageFile(e.target.files ? e.target.files[0] : null);
+                                                    }
+                                                }}
+                                                className="hidden"
+                                                id="gallery-upload"
+                                            />
+                                            <label
+                                                htmlFor="gallery-upload"
+                                                className="w-full px-4 py-2.5 rounded-xl border bg-background flex items-center justify-between cursor-pointer hover:border-primary transition-colors"
+                                            >
+                                                <span className="text-sm truncate text-muted-foreground line-clamp-1 max-w-[80%] block" title={editingMediaId ? (editImageFile ? editImageFile.name : editMediaForm.src) : (imageFile ? imageFile.name : "Select Image from Device...")}>
+                                                    {editingMediaId
+                                                        ? (editImageFile ? editImageFile.name : (editMediaForm.src ? "Retain Existing Image" : "Select Image..."))
+                                                        : (imageFile ? imageFile.name : "Select Image from Device...")}
+                                                </span>
+                                                <div className="bg-secondary px-3 py-1 rounded text-xs font-semibold shrink-0">Browse</div>
+                                            </label>
+                                        </div>
+                                        <input
+                                            placeholder="Label / Title"
+                                            value={editingMediaId ? editMediaForm.label : newMedia.label}
+                                            onChange={(e) => {
+                                                if (editingMediaId) setEditMediaForm({ ...editMediaForm, label: e.target.value });
+                                                else setNewMedia({ ...newMedia, label: e.target.value });
+                                            }}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                            required
+                                        />
+                                        <select
+                                            value={editingMediaId ? editMediaForm.category : newMedia.category}
+                                            onChange={(e) => {
+                                                if (editingMediaId) setEditMediaForm({ ...editMediaForm, category: e.target.value });
+                                                else setNewMedia({ ...newMedia, category: e.target.value });
+                                            }}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                        >
+                                            {["Makeup", "Bridal", "Hair", "Nails", "Skincare", "Studio"].map((opt) => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                        </select>
+                                        <div className="flex gap-2 w-full">
+                                            <button type="submit" disabled={(editingMediaId && isEditingUploading) || (!editingMediaId && isUploading) || (!editingMediaId && !newMedia.src && !imageFile)} className="flex-1 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2 disabled:opacity-50">
+                                                {editingMediaId
+                                                    ? (isEditingUploading ? "Saving..." : <><Check size={18} /> Save</>)
+                                                    : (isUploading ? "Uploading..." : <><Plus size={18} /> Add</>)
+                                                }
+                                            </button>
+                                            {editingMediaId && (
+                                                <button type="button" onClick={() => { setEditingMediaId(null); setEditImageFile(null); setEditMediaForm({ src: "", label: "", type: "photo", category: "Makeup" }); }} className="flex-1 border border-input bg-secondary text-foreground hover:bg-secondary/50 rounded-xl py-2 flex items-center justify-center gap-2 transition-colors">
+                                                    Cancel
+                                                </button>
+                                            )}
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                    {media.map((m) => (
+                                        <div key={m.id} className="relative group rounded-xl overflow-hidden aspect-square border">
+                                            <img src={m.src} alt={m.label} className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingMediaId(m.id);
+                                                        setEditMediaForm({ src: m.src, label: m.label, type: m.type || "photo", category: m.category });
+                                                        setEditImageFile(null);
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    }}
+                                                    className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Edit size={20} />
+                                                </button>
+                                                <button
+                                                    onClick={() => removeMedia(m.id)}
+                                                    className="bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={20} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </TabsContent>
+
+                            {/* Offers Tab */}
+                            <TabsContent value="offers" className="space-y-6">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <h2 className="text-xl font-semibold mb-4">Add New Offer / Membership</h2>
+                                    <form onSubmit={handleAddOffer} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <input
+                                            placeholder="Title (e.g. Summer Glow)"
+                                            value={newOffer.title}
+                                            onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                            required
+                                        />
+                                        <input
+                                            placeholder="Price (e.g. ₹2,499)"
+                                            value={newOffer.price}
+                                            onChange={(e) => setNewOffer({ ...newOffer, price: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                            required
+                                        />
+                                        <input
+                                            placeholder="Original Price (optional)"
+                                            value={newOffer.originalPrice}
+                                            onChange={(e) => setNewOffer({ ...newOffer, originalPrice: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                        />
+                                        <input
+                                            placeholder="Tag (e.g. Summer Special)"
+                                            value={newOffer.tag}
+                                            onChange={(e) => setNewOffer({ ...newOffer, tag: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background"
+                                        />
+                                        <textarea
+                                            placeholder="Description"
+                                            value={newOffer.desc}
+                                            onChange={(e) => setNewOffer({ ...newOffer, desc: e.target.value })}
+                                            className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2"
+                                            rows={2}
+                                        />
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="isMembership"
+                                                checked={newOffer.isMembership}
+                                                onChange={(e) => setNewOffer({ ...newOffer, isMembership: e.target.checked })}
+                                                className="w-4 h-4"
+                                            />
+                                            <label htmlFor="isMembership" className="text-sm">Is this a Membership? (Shows on homepage)</label>
+                                        </div>
+                                        <div className="flex flex-col sm:flex-row gap-3 sm:col-span-2">
+                                            <button type="submit" className="flex-1 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2">
+                                                {editingOfferId ? <><Check size={18} /> Update Offer</> : <><Plus size={18} /> Add Offer</>}
+                                            </button>
+                                            {editingOfferId && (
+                                                <button type="button" onClick={() => { setEditingOfferId(null); setNewOffer({ title: "", price: "", originalPrice: "", desc: "", iconName: "Star", tag: "", tagColor: "bg-primary", isMembership: false }); }} className="flex-1 border border-input bg-secondary text-foreground hover:bg-secondary/50 rounded-xl py-2 flex items-center justify-center gap-2 transition-colors">
+                                                    Cancel
+                                                </button>
+                                            )}
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {offers.map((o) => (
+                                        <div key={o.id} className="glass-card p-6 rounded-2xl relative">
+                                            <div className="absolute top-4 right-4 flex gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingOfferId(o.id);
+                                                        setNewOffer({ title: o.title, price: o.price, originalPrice: o.originalPrice || "", desc: o.desc || "", iconName: o.iconName || "Star", tag: o.tag || "", tagColor: o.tagColor || "bg-primary", isMembership: o.isMembership || false });
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    }}
+                                                    className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                                                >
+                                                    <Edit size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => removeOffer(o.id)}
+                                                    className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
+                                            <h3 className="text-lg font-bold pr-8">{o.title}</h3>
+                                            <p className="text-primary font-semibold text-xl my-2">{o.price} {o.originalPrice && <span className="text-muted-foreground line-through text-sm">{o.originalPrice}</span>}</p>
+                                            <p className="text-sm text-muted-foreground mb-3">{o.desc}</p>
+                                            {o.tag && <span className="text-xs bg-secondary px-2 py-1 rounded inline-block mb-2">{o.tag}</span>}
+                                            <p className="text-xs font-medium text-amber-600">{o.isMembership ? "Membership (Homepage)" : "Standard Offer"}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </TabsContent>
+
+                            {/* Users Tab */}
+                            <TabsContent value="users" className="space-y-4 m-0">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                        <h2 className="text-xl font-semibold">Registered Users</h2>
+                                        <div className="relative w-full sm:w-64">
+                                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search by name, email or phone..."
+                                                value={searchUserQuery}
+                                                onChange={(e) => setSearchUserQuery(e.target.value)}
+                                                className="w-full pl-9 pr-4 py-2 rounded-xl border bg-background text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                    {backendUsers.filter(u => u.name?.toLowerCase().includes(searchUserQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchUserQuery.toLowerCase()) || u.phone?.includes(searchUserQuery)).length === 0 ? (
+                                        <p className="text-muted-foreground">No users registered yet.</p>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="border-b border-border/50 text-muted-foreground">
+                                                        <th className="p-3 font-medium">Name</th>
+                                                        <th className="p-3 font-medium">Email Address</th>
+                                                        <th className="p-3 font-medium">Phone Number</th>
+                                                        <th className="p-3 font-medium text-right">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {backendUsers.filter(u => u.name?.toLowerCase().includes(searchUserQuery.toLowerCase()) || u.email?.toLowerCase().includes(searchUserQuery.toLowerCase()) || u.phone?.includes(searchUserQuery)).map((u, i) => (
+                                                        <tr key={u._id || i} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
+                                                            <td className="p-3 font-medium flex items-center gap-2">
+                                                                {u.profileImage ? (
+                                                                    <img src={u.profileImage} alt="Profile" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                                                ) : (
+                                                                    <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-bold shrink-0">
+                                                                        {u.name.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                {u.name}
+                                                            </td>
+                                                            <td className="p-3 text-muted-foreground">{u.email}</td>
+                                                            <td className="p-3 text-muted-foreground">{u.phone || "-"}</td>
+                                                            <td className="p-3 text-right">
+                                                                <button onClick={() => handleSendFeedbackEmail(u.email)} className="text-sm bg-blue-100/50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-2 ml-auto">
+                                                                    <Mail size={14} /> Send Reply
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            </TabsContent>
+
+                            {/* Bridal Packages Tab */}
+                            <TabsContent value="bridal" className="space-y-6">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <h2 className="text-xl font-semibold mb-4">Add New Bridal Package</h2>
+                                    <form onSubmit={(e) => {
+                                        e.preventDefault();
+                                        if (!newBridal.name || !newBridal.price) return;
+                                        addBridalPackage({
+                                            name: newBridal.name,
+                                            price: newBridal.price,
+                                            features: newBridal.features.split(',').map(f => f.trim()).filter(Boolean),
+                                            tier: "silver"
+                                        });
+                                        setNewBridal({ name: "", price: "", features: "" });
+                                    }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <input placeholder="Package Name" value={newBridal.name} onChange={(e) => setNewBridal({ ...newBridal, name: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                        <input placeholder="Price" value={newBridal.price} onChange={(e) => setNewBridal({ ...newBridal, price: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                        <textarea placeholder="Features (comma separated)" value={newBridal.features} onChange={(e) => setNewBridal({ ...newBridal, features: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2" rows={2} />
+                                        <button type="submit" className="sm:col-span-2 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2"><Plus size={18} /> Add Package</button>
+                                    </form>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                                    {bridalPackages.map((pkg) => (
+                                        <div key={pkg.id} className="glass-card p-6 rounded-2xl relative">
+                                            {editingBridalId === pkg.id ? (
+                                                <div className="space-y-4">
+                                                    <input
+                                                        value={editBridalForm.name}
+                                                        onChange={(e) => setEditBridalForm({ ...editBridalForm, name: e.target.value })}
+                                                        className="w-full px-3 py-2 border rounded-lg bg-background"
+                                                        placeholder="Package Name"
+                                                    />
+                                                    <input
+                                                        value={editBridalForm.price}
+                                                        onChange={(e) => setEditBridalForm({ ...editBridalForm, price: e.target.value })}
+                                                        className="w-full px-3 py-2 border rounded-lg bg-background"
+                                                        placeholder="Price"
+                                                    />
+                                                    <textarea
+                                                        value={editBridalForm.features}
+                                                        onChange={(e) => setEditBridalForm({ ...editBridalForm, features: e.target.value })}
+                                                        className="w-full px-3 py-2 border rounded-lg bg-background"
+                                                        rows={4}
+                                                        placeholder="Features (comma separated)"
+                                                    />
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                updateBridalPackage(pkg.id, {
+                                                                    name: editBridalForm.name,
+                                                                    price: editBridalForm.price,
+                                                                    features: editBridalForm.features.split(',').map(f => f.trim()).filter(Boolean)
+                                                                });
+                                                                setEditingBridalId(null);
+                                                            }}
+                                                            className="flex-1 bg-green-500 text-white rounded-lg py-2 text-sm font-semibold hover:bg-green-600 transition-colors"
+                                                        >
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingBridalId(null)}
+                                                            className="flex-1 bg-secondary text-foreground rounded-lg py-2 text-sm font-semibold hover:bg-secondary/80 transition-colors border"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="absolute top-4 right-4 flex gap-2">
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingBridalId(pkg.id);
+                                                                setEditBridalForm({ name: pkg.name, price: pkg.price, features: pkg.features.join(', ') });
+                                                            }}
+                                                            className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"
+                                                        >
+                                                            <Edit size={16} />
+                                                        </button>
+                                                        <button onClick={() => removeBridalPackage(pkg.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                                    </div>
+                                                    <h3 className="text-xl font-bold pr-16">{pkg.name}</h3>
+                                                    <p className="text-primary font-bold text-2xl my-2">{pkg.price}</p>
+                                                    <div className="mt-4 space-y-2">
+                                                        <p className="text-sm font-semibold text-muted-foreground">Features:</p>
+                                                        <ul className="text-sm space-y-1">
+                                                            {pkg.features.map((f, idx) => (
+                                                                <li key={idx} className="flex items-center gap-2">
+                                                                    <Check size={14} className="text-primary" /> {f}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </TabsContent>
+
+                            {/* Reviews Tab */}
+                            <TabsContent value="reviews" className="space-y-6">
+                                <div className="glass-card p-6 rounded-2xl">
+                                    <h2 className="text-xl font-semibold mb-4">{editingReviewId ? "Edit Testimonial" : "Add New Testimonial"}</h2>
+                                    <form onSubmit={(e) => {
+                                        e.preventDefault();
+                                        if (editingReviewId) {
+                                            updateReview(editingReviewId, editReviewForm);
+                                            setEditingReviewId(null);
+                                            setEditReviewForm({ name: "", text: "", rating: 5, showOnHomepage: true });
+                                        } else {
+                                            if (!newReview.name || !newReview.text) return;
+                                            addReview({ ...newReview });
+                                            setNewReview({ name: "", text: "", rating: 5, showOnHomepage: true });
+                                        }
+                                    }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <input placeholder="Client Name" value={editingReviewId ? editReviewForm.name : newReview.name} onChange={(e) => editingReviewId ? setEditReviewForm({ ...editReviewForm, name: e.target.value }) : setNewReview({ ...newReview, name: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                        <input type="number" min="1" max="5" placeholder="Rating (1-5)" value={editingReviewId ? editReviewForm.rating : newReview.rating} onChange={(e) => editingReviewId ? setEditReviewForm({ ...editReviewForm, rating: Number(e.target.value) }) : setNewReview({ ...newReview, rating: Number(e.target.value) })} className="w-full px-4 py-2 rounded-xl border bg-background" required />
+                                        <textarea placeholder="Review Text" value={editingReviewId ? editReviewForm.text : newReview.text} onChange={(e) => editingReviewId ? setEditReviewForm({ ...editReviewForm, text: e.target.value }) : setNewReview({ ...newReview, text: e.target.value })} className="w-full px-4 py-2 rounded-xl border bg-background sm:col-span-2" rows={3} required />
+
+                                        <div className="sm:col-span-2 flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="showOnHomepage"
+                                                checked={editingReviewId ? editReviewForm.showOnHomepage : newReview.showOnHomepage}
+                                                onChange={(e) => editingReviewId ? setEditReviewForm({ ...editReviewForm, showOnHomepage: e.target.checked }) : setNewReview({ ...newReview, showOnHomepage: e.target.checked })}
+                                                className="w-4 h-4 cursor-pointer"
+                                            />
+                                            <label htmlFor="showOnHomepage" className="cursor-pointer text-sm font-medium">Show on Homepage</label>
+                                        </div>
+
+                                        <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3">
+                                            <button type="submit" className="flex-1 gradient-primary text-white rounded-xl py-2 flex items-center justify-center gap-2">
+                                                {editingReviewId ? <><Check size={18} /> Update Review</> : <><Plus size={18} /> Add Review</>}
+                                            </button>
+                                            {editingReviewId && (
+                                                <button type="button" onClick={() => { setEditingReviewId(null); setEditReviewForm({ name: "", text: "", rating: 5, showOnHomepage: true }); }} className="flex-1 border border-input bg-secondary text-foreground hover:bg-secondary/50 rounded-xl py-2 flex items-center justify-center gap-2 transition-colors">
+                                                    Cancel
+                                                </button>
+                                            )}
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {reviews.map((r) => (
+                                        <div key={r.id} className="glass-card p-6 rounded-2xl relative">
+                                            <div className="absolute top-4 right-4 flex gap-2">
+                                                <button onClick={() => {
+                                                    setEditingReviewId(r.id);
+                                                    setEditReviewForm({ name: r.name, text: r.text, rating: r.rating, showOnHomepage: r.showOnHomepage ?? false });
+                                                    window.scrollTo({ top: 0, behavior: "smooth" });
+                                                }} className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors"><Edit size={16} /></button>
+                                                <button onClick={() => removeReview(r.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                            </div>
+                                            <h3 className="text-lg font-bold pr-16">{r.name}</h3>
+                                            <p className="text-amber-500 my-1">{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</p>
+                                            <p className="text-sm text-muted-foreground italic truncate">"{r.text}"</p>
+                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                {r.showOnHomepage ? <span className="text-green-600 font-semibold">• Shown on Homepage</span> : <span>• Hidden from Homepage</span>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </TabsContent>
+
+                        </div>
                     </Tabs>
                 </div>
             </div>

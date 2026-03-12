@@ -22,6 +22,13 @@ const BookingSection = () => {
     const date = formData.get("date") as string;
     const time = formData.get("time") as string;
 
+    // Validate Time (10 AM to 7 PM)
+    const [hours, minutes] = time.split(":").map(Number);
+    if (hours < 10 || hours >= 19 || (hours === 19 && minutes > 0)) {
+        setErrorObj("Please select a time between 10:00 AM and 07:00 PM.");
+        return;
+    }
+
     // Optional local check first
     const isSlotTaken = bookings.some(b => b.date === date && b.time === time && b.status !== "Cancelled" && b.status !== "Declined");
     if (isSlotTaken) {
@@ -201,9 +208,12 @@ const BookingSection = () => {
                     name="time"
                     required
                     type="time"
+                    min="10:00"
+                    max="19:00"
                     className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground mt-1 text-center">Open: 10:00 AM - 07:00 PM</p>
               </div>
             </div>
 
