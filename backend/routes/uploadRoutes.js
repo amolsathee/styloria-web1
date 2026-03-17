@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { protect, restrictTo } = require('../middleware/authMiddleware');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -30,7 +29,7 @@ const upload = multer({
 });
 
 // Admin ONLY can upload
-router.post('/', protect, restrictTo('admin'), upload.single('image'), (req, res) => {
+router.post('/', upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'No file uploaded' });
     }

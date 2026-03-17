@@ -100,6 +100,7 @@ type StoreContextType = {
     addBooking: (booking: Omit<Booking, "id" | "status">) => void;
     updateBookingStatus: (id: string, status: Booking["status"]) => void;
     updateBooking: (id: string, date: string, time: string) => void;
+    updateBookingDetails: (id: string, date: string, time: string, service: string, beautician: string) => void;
     offers: Offer[];
     addOffer: (offer: Omit<Offer, "id">) => void;
     removeOffer: (id: string) => void;
@@ -456,6 +457,12 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
         );
     };
 
+    const updateBookingDetails = (id: string, date: string, time: string, service: string, beautician: string) => {
+        setBookings((prev) =>
+            prev.map((b) => (b.id === id ? { ...b, date, time, service, beautician } : b))
+        );
+    };
+
     const addOffer = (offer: Omit<Offer, "id">) => {
         setOffers((prev) => [...prev, { ...offer, id: Date.now().toString() }]);
     };
@@ -541,6 +548,7 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
                 addBooking,
                 updateBookingStatus,
                 updateBooking,
+                updateBookingDetails,
                 offers,
                 addOffer,
                 removeOffer,

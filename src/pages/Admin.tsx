@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/lib/store";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import { Trash2, Plus, Check, Lock, LogOut, Edit, X, Mail, Search } from "lucide-react";
+import { Trash2, Plus, Check, Lock, LogOut, Edit, X, Mail, Search, ChevronDown } from "lucide-react";
 import { convertTo12HourFormat } from "@/lib/utils";
 import { userAPI, adminAPI, bookingAPI, authAPI, uploadAPI, default as api } from "@/services/api";
 
@@ -21,6 +21,7 @@ const Admin = () => {
         bookings,
         updateBookingStatus,
         updateBooking,
+        updateBookingDetails: localUpdateBookingDetails,
         offers,
         addOffer,
         removeOffer,
@@ -44,6 +45,7 @@ const Admin = () => {
     const [backendUsers, setBackendUsers] = useState<any[]>([]);
     const [backendBookings, setBackendBookings] = useState<any[]>([]);
     const [searchBookingQuery, setSearchBookingQuery] = useState("");
+    const [searchBookingDate, setSearchBookingDate] = useState("");
     const [searchUserQuery, setSearchUserQuery] = useState("");
 
     const [newMedia, setNewMedia] = useState({ src: "", label: "", type: "photo" as "photo" | "video", category: "Makeup" });
@@ -59,7 +61,28 @@ const Admin = () => {
     const [editServiceForm, setEditServiceForm] = useState({ name: "", price: "" });
 
     const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
-    const [editBookingForm, setEditBookingForm] = useState({ date: "", time: "" });
+    const [editBookingForm, setEditBookingForm] = useState({ date: "", time: "", beautician: "" });
+    const [editBookingSelectedServices, setEditBookingSelectedServices] = useState<string[]>([]);
+    const [isEditServiceDropdownOpen, setIsEditServiceDropdownOpen] = useState(false);
+    const editDropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (editDropdownRef.current && !editDropdownRef.current.contains(event.target as Node)) {
+                setIsEditServiceDropdownOpen(false);
+            }
+        };
+
+        if (isEditServiceDropdownOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        } else {
+            document.removeEventListener("mousedown", handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isEditServiceDropdownOpen]);
     const [editingOfferId, setEditingOfferId] = useState<string | null>(null);
 
     const [editingBridalId, setEditingBridalId] = useState<string | null>(null);
@@ -244,6 +267,18 @@ const Admin = () => {
         setEditServiceForm({ name: "", price: "" });
     };
 
+    const calculateTotalAmount = (serviceString?: string) => {
+        if (!serviceString) return "-";
+        let total = 0;
+        const regex = /₹([0-9,]+)/g;
+        let match;
+        while ((match = regex.exec(serviceString)) !== null) {
+            const num = parseInt(match[1].replace(/,/g, ''), 10);
+            if (!isNaN(num)) total += num;
+        }
+        return total > 0 ? `₹${total.toLocaleString('en-IN')}` : "-";
+    };
+
     if (!isAuthenticated) {
         return (
             <div className="min-h-screen bg-background flex flex-col">
@@ -335,19 +370,42 @@ const Admin = () => {
                                 <div className="glass-card p-6 rounded-2xl">
                                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                                         <h2 className="text-xl font-semibold">Manage Bookings</h2>
-                                        <div className="relative w-full sm:w-64">
-                                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                                            <input
-                                                type="text"
-                                                placeholder="Search by name, phone or status..."
-                                                value={searchBookingQuery}
-                                                onChange={(e) => setSearchBookingQuery(e.target.value)}
-                                                className="w-full pl-9 pr-4 py-2 rounded-xl border bg-background text-sm"
-                                            />
+                                        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                                            <div className="relative w-full sm:w-64">
+                                                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Search by name, phone or status..."
+                                                    value={searchBookingQuery}
+                                                    onChange={(e) => setSearchBookingQuery(e.target.value)}
+                                                    className="w-full pl-9 pr-4 py-2 rounded-xl border bg-background text-sm"
+                                                />
+                                            </div>
+                                            <div className="relative w-full sm:w-44">
+                                                <input
+                                                    type="date"
+                                                    value={searchBookingDate}
+                                                    onChange={(e) => setSearchBookingDate(e.target.value)}
+                                                    className="w-full px-3 py-2 rounded-xl border bg-background text-sm text-muted-foreground"
+                                                />
+                                                {searchBookingDate && (
+                                                    <button 
+                                                        onClick={() => setSearchBookingDate("")} 
+                                                        className="absolute right-8 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-full bg-secondary/50"
+                                                        title="Clear Date Filter"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                    {backendBookings.filter(b => b.name?.toLowerCase().includes(searchBookingQuery.toLowerCase()) || b.phone?.includes(searchBookingQuery) || b.status?.toLowerCase().includes(searchBookingQuery.toLowerCase())).length === 0 ? (
-                                        <p className="text-muted-foreground">No bookings yet.</p>
+                                    {backendBookings.filter(b => {
+                                        const matchQ = b.name?.toLowerCase().includes(searchBookingQuery.toLowerCase()) || b.phone?.includes(searchBookingQuery) || b.status?.toLowerCase().includes(searchBookingQuery.toLowerCase());
+                                        const matchD = searchBookingDate ? b.date === searchBookingDate : true;
+                                        return matchQ && matchD;
+                                    }).length === 0 ? (
+                                        <p className="text-muted-foreground">No bookings found.</p>
                                     ) : (
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-left border-collapse">
@@ -356,6 +414,7 @@ const Admin = () => {
                                                         <th className="p-3 font-medium">Name</th>
                                                         <th className="p-3 font-medium">Phone</th>
                                                         <th className="p-3 font-medium">Service</th>
+                                                        <th className="p-3 font-medium">Total Amount</th>
                                                         <th className="p-3 font-medium">Date & Time</th>
                                                         <th className="p-3 font-medium">Beautician</th>
                                                         <th className="p-3 font-medium">Status</th>
@@ -363,22 +422,89 @@ const Admin = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {backendBookings.filter(b => b.name?.toLowerCase().includes(searchBookingQuery.toLowerCase()) || b.phone?.includes(searchBookingQuery) || b.status?.toLowerCase().includes(searchBookingQuery.toLowerCase())).map((b) => (
-                                                        <tr key={b._id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
+                                                    {backendBookings.filter(b => {
+                                                        const matchQ = b.name?.toLowerCase().includes(searchBookingQuery.toLowerCase()) || b.phone?.includes(searchBookingQuery) || b.status?.toLowerCase().includes(searchBookingQuery.toLowerCase());
+                                                        const matchD = searchBookingDate ? b.date === searchBookingDate : true;
+                                                        return matchQ && matchD;
+                                                    }).map((b) => (
+                                                        <tr key={b._id || b.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/20 transition-colors">
                                                             <td className="p-3 font-medium">{b.name}</td>
                                                             <td className="p-3 text-muted-foreground">{b.phone}</td>
-                                                            <td className="p-3">{b.service}</td>
                                                             <td className="p-3">
-                                                                {editingBookingId === b.id ? (
+                                                                {editingBookingId === (b._id || b.id) ? (
+                                                                    <div className="relative min-w-[200px]" ref={editDropdownRef}>
+                                                                        <div 
+                                                                            className="w-full px-2 py-1.5 rounded-lg border border-input bg-background focus:ring-2 focus:ring-primary/30 cursor-pointer flex justify-between items-center transition-all min-h-[36px]"
+                                                                            onClick={() => setIsEditServiceDropdownOpen(!isEditServiceDropdownOpen)}
+                                                                        >
+                                                                            <span className={editBookingSelectedServices.length === 0 ? "text-muted-foreground text-sm" : "text-foreground text-sm line-clamp-1"}>
+                                                                                {editBookingSelectedServices.length === 0 ? "Choose services" : editBookingSelectedServices.join(", ")}
+                                                                            </span>
+                                                                            <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isEditServiceDropdownOpen ? "rotate-180" : ""}`} />
+                                                                        </div>
+
+                                                                        {isEditServiceDropdownOpen && (
+                                                                            <div className="absolute z-[100] w-[250px] md:w-full mt-1 bg-background border border-input rounded-xl shadow-lg max-h-60 overflow-y-auto p-1 text-sm top-full left-0">
+                                                                                <div className="space-y-3 p-1 relative">
+                                                                                    <div className="sticky top-0 bg-background/95 backdrop-blur z-10 flex justify-end pb-1 border-b">
+                                                                                        <button type="button" onClick={() => setIsEditServiceDropdownOpen(false)} className="text-xs font-semibold text-primary">Done</button>
+                                                                                    </div>
+                                                                                    {[
+                                                                                        { label: "Standard Services", items: categories.map((c) => c.services.map((s) => `${s.name} (${s.price})`)).flat() },
+                                                                                        { label: "Memberships & Offers", items: offers.filter(o => o.title !== "Bridal Membership").map((o) => `${o.title} (${o.price})`) },
+                                                                                        { label: "Bridal Packages", items: bridalPackages.map(pkg => `${pkg.name} (${pkg.price})`) }
+                                                                                    ].map((group) => (
+                                                                                        <div key={group.label}>
+                                                                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 px-1">{group.label}</p>
+                                                                                            {group.items.map((item) => (
+                                                                                                <label key={item} className="flex items-start gap-2 p-1.5 hover:bg-secondary/50 rounded-md cursor-pointer transition-colors">
+                                                                                                    <input
+                                                                                                        type="checkbox"
+                                                                                                        checked={editBookingSelectedServices.includes(item)}
+                                                                                                        onChange={(e) => {
+                                                                                                            if (e.target.checked) setEditBookingSelectedServices([...editBookingSelectedServices, item]);
+                                                                                                            else setEditBookingSelectedServices(editBookingSelectedServices.filter(s => s !== item));
+                                                                                                        }}
+                                                                                                        className="mt-0.5 shrink-0 accent-primary w-3 h-3 cursor-pointer"
+                                                                                                    />
+                                                                                                    <span className="text-xs cursor-pointer leading-tight">{item}</span>
+                                                                                                </label>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    ))}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    b.service
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3 font-semibold text-primary whitespace-nowrap">
+                                                                {calculateTotalAmount(editingBookingId === (b._id || b.id) ? editBookingSelectedServices.join(', ') : b.service)}
+                                                            </td>
+                                                            <td className="p-3">
+                                                                {editingBookingId === (b._id || b.id) ? (
                                                                     <div className="flex gap-2 min-w-[200px]">
-                                                                        <input type="date" value={editBookingForm.date} onChange={e => setEditBookingForm({ ...editBookingForm, date: e.target.value })} className="border rounded px-2 w-full text-sm bg-background border-input" />
-                                                                        <input type="time" value={editBookingForm.time} onChange={e => setEditBookingForm({ ...editBookingForm, time: e.target.value })} className="border rounded px-2 w-full text-sm bg-background border-input" />
+                                                                        <input type="date" value={editBookingForm.date} onChange={e => setEditBookingForm({ ...editBookingForm, date: e.target.value })} className="border rounded px-2 py-1 w-full text-sm bg-background border-input" />
+                                                                        <input type="time" value={editBookingForm.time} onChange={e => setEditBookingForm({ ...editBookingForm, time: e.target.value })} className="border rounded px-2 py-1 w-full text-sm bg-background border-input" />
                                                                     </div>
                                                                 ) : (
                                                                     <span className="whitespace-nowrap">{new Date(b.date).toLocaleDateString()} at {convertTo12HourFormat(b.time)}</span>
                                                                 )}
                                                             </td>
-                                                            <td className="p-3">{b.beautician}</td>
+                                                            <td className="p-3">
+                                                                {editingBookingId === (b._id || b.id) ? (
+                                                                    <select value={editBookingForm.beautician} onChange={e => setEditBookingForm({ ...editBookingForm, beautician: e.target.value })} className="border rounded px-2 py-1.5 w-full min-w-[120px] text-sm bg-background border-input outline-none">
+                                                                        <option value="">Select Beautician</option>
+                                                                        {["Any Available", "Pooja", "Sonali"].map((b) => (
+                                                                            <option key={b} value={b}>{b}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                ) : (
+                                                                    b.beautician
+                                                                )}
+                                                            </td>
                                                             <td className="p-3">
                                                                 <span
                                                                     className={`px-3 py-1 text-xs font-semibold rounded-full ${b.status === "Confirmed"
@@ -395,26 +521,78 @@ const Admin = () => {
                                                             </td>
                                                             <td className="p-3">
                                                                 <div className="flex items-center justify-end gap-2">
-                                                                    {editingBookingId === b._id ? (
+                                                                    {editingBookingId === (b._id || b.id) ? (
                                                                         <>
-                                                                            <button onClick={() => { updateBooking(b._id, editBookingForm.date, editBookingForm.time); setEditingBookingId(null); }} className="text-green-600 hover:text-green-700 bg-green-100 p-2 rounded-full transition-colors" title="Save Booking">
+                                                                            <button onClick={async () => {
+                                                                                const updatedService = editBookingSelectedServices.join(", ");
+                                                                                
+                                                                                try {
+                                                                                    if (b._id) {
+                                                                                        await bookingAPI.updateBookingDetails(b._id, {
+                                                                                            date: editBookingForm.date,
+                                                                                            time: editBookingForm.time,
+                                                                                            service: updatedService,
+                                                                                            beautician: editBookingForm.beautician
+                                                                                        });
+                                                                                    } else {
+                                                                                        throw new Error("Local fallback mode");
+                                                                                    }
+                                                                                } catch (err: any) {
+                                                                                    console.error("Backend failed, saving locally", err);
+                                                                                    if (b.id) {
+                                                                                        localUpdateBookingDetails(b.id, editBookingForm.date, editBookingForm.time, updatedService, editBookingForm.beautician);
+                                                                                    } else {
+                                                                                        alert("Failed to update booking details: " + (err.response?.data?.message || err.message));
+                                                                                    }
+                                                                                } finally {
+                                                                                    setEditingBookingId(null);
+                                                                                    setIsEditServiceDropdownOpen(false);
+                                                                                    fetchBookings();
+                                                                                }
+                                                                            }} className="text-green-600 hover:text-green-700 bg-green-100 p-2 rounded-full transition-colors" title="Save Booking">
                                                                                 <Check size={16} />
                                                                             </button>
-                                                                            <button onClick={() => setEditingBookingId(null)} className="text-red-500 bg-red-100 p-2 rounded-full transition-colors" title="Cancel">
+                                                                            <button onClick={() => { setEditingBookingId(null); setIsEditServiceDropdownOpen(false); }} className="text-red-500 bg-red-100 p-2 rounded-full transition-colors" title="Cancel">
                                                                                 <X size={16} />
                                                                             </button>
                                                                         </>
                                                                     ) : (
-                                                                        <button onClick={() => { setEditingBookingId(b._id); setEditBookingForm({ date: b.date, time: b.time }); }} className="text-blue-600 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Edit Booking Date/Time">
+                                                                        <button onClick={() => { 
+                                                                            setEditingBookingId(b._id || b.id); 
+                                                                            setIsEditServiceDropdownOpen(false);
+                                                                            setEditBookingForm({ date: b.date, time: b.time, beautician: b.beautician || "" }); 
+                                                                            // Make sure to parse existing services exactly as they are in the checkboxes
+                                                                            const allServiceNames = [
+                                                                                ...categories.map((c) => c.services.map((s) => `${s.name} (${s.price})`)).flat(),
+                                                                                ...offers.filter(o => o.title !== "Bridal Membership").map((o) => `${o.title} (${o.price})`),
+                                                                                ...bridalPackages.map(pkg => `${pkg.name} (${pkg.price})`)
+                                                                            ];
+                                                                            const selectedList = b.service ? b.service.split(",").map((s: string) => s.trim()).filter(Boolean) : [];
+                                                                            
+                                                                            // Try to find the exact matching service from allServiceNames
+                                                                            const matchedServices = selectedList.map((selected: string) => {
+                                                                                const match = allServiceNames.find(sName => sName.toLowerCase().includes(selected.toLowerCase()) || selected.toLowerCase().includes(sName.toLowerCase()) || sName === selected);
+                                                                                return match || selected;
+                                                                            });
+                                                                            setEditBookingSelectedServices(matchedServices);
+                                                                        }} className="text-blue-600 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 p-2 rounded-full transition-colors" title="Edit Booking Details">
                                                                             <Edit size={16} />
                                                                         </button>
                                                                     )}
                                                                     {b.status === "Pending" && (
                                                                         <>
-                                                                            <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Confirmed"); fetchBookings(); }} className="text-green-600 hover:text-green-700 bg-green-100 hover:bg-green-200 p-2 rounded-full transition-colors" title="Confirm Booking">
+                                                                            <button onClick={async () => { 
+                                                                                try { 
+                                                                                    if (b._id) await bookingAPI.updateBookingStatus(b._id, "Confirmed"); 
+                                                                                } catch(e) { console.error(e); } finally { fetchBookings(); } 
+                                                                            }} className="text-green-600 hover:text-green-700 bg-green-100 hover:bg-green-200 p-2 rounded-full transition-colors" title="Confirm Booking">
                                                                                 <Check size={16} />
                                                                             </button>
-                                                                            <button onClick={async () => { await bookingAPI.updateBookingStatus(b._id, "Declined"); fetchBookings(); }} className="text-red-600 hover:text-red-700 bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors" title="Decline Booking">
+                                                                            <button onClick={async () => { 
+                                                                                try { 
+                                                                                    if (b._id) await bookingAPI.updateBookingStatus(b._id, "Declined"); 
+                                                                                } catch(e) { console.error(e); } finally { fetchBookings(); } 
+                                                                            }} className="text-red-600 hover:text-red-700 bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors" title="Decline Booking">
                                                                                 <X size={16} />
                                                                             </button>
                                                                         </>

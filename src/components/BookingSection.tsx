@@ -1,6 +1,6 @@
 import { motion, useInView } from "framer-motion";
-import { useRef, useState } from "react";
-import { Calendar, Clock, User, CheckCircle, Mail } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { Calendar, Clock, User, CheckCircle, Mail, ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { bookingAPI } from "@/services/api";
 
@@ -12,9 +12,37 @@ const BookingSection = () => {
   const { categories, addBooking, offers, bridalPackages, currentUser, selectedServiceToBook, setSelectedServiceToBook, bookings } = useStore();
   const [submitted, setSubmitted] = useState(false);
   const [errorObj, setErrorObj] = useState<string | null>(null);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [isServiceDropdownOpen, setIsServiceDropdownOpen] = useState(false);
   const [submittedPhone, setSubmittedPhone] = useState("");
   const allServices = categories.map((c) => c.services.map((s) => `${s.name} (${s.price})`)).flat();
   const allOffers = offers.filter(o => o.title !== "Bridal Membership").map((o) => `${o.title} (${o.price})`);
+
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedServiceToBook && !selectedServices.includes(selectedServiceToBook)) {
+      setSelectedServices(prev => [...prev, selectedServiceToBook]);
+    }
+  }, [selectedServiceToBook]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsServiceDropdownOpen(false);
+      }
+    };
+
+    if (isServiceDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    } else {
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isServiceDropdownOpen]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,10 +64,15 @@ const BookingSection = () => {
       return;
     }
 
+    if (selectedServices.length === 0) {
+      setErrorObj("Please select at least one service.");
+      return;
+    }
+
     const payload = {
       name: formData.get("name") as string,
       phone: formData.get("phone") as string,
-      service: formData.get("service") as string,
+      service: selectedServices.join(", "),
       date,
       time,
       beautician: formData.get("beautician") as string,
@@ -99,6 +132,7 @@ const BookingSection = () => {
               onClick={() => {
                 setSubmitted(false);
                 setSelectedServiceToBook(null);
+                setSelectedServices([]);
               }}
               className="mt-6 gradient-primary text-primary-foreground px-8 py-3 rounded-full font-semibold"
             >
@@ -136,7 +170,11 @@ const BookingSection = () => {
                   required
                   type="tel"
                   defaultValue={currentUser?.phone || ""}
-                  placeholder="+91 90114 93241"
+                  placeholder="9011493241"
+                  pattern="[6-9][0-9]{9}"
+                  maxLength={10}
+                  title="Please enter a valid 10-digit Indian phone number starting with 6, 7, 8, or 9"
+                  onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/[^0-9]/g, ''); }}
                   className="w-full px-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                 />
               </div>
@@ -150,39 +188,61 @@ const BookingSection = () => {
                     type="email"
                     defaultValue={currentUser?.email || ""}
                     placeholder="your@email.com"
+                    pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+                    title="Please enter a valid email address"
                     className="w-full pl-10 pr-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Service */}
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Select Service</label>
-              <select
-                name="service"
-                required
-                value={selectedServiceToBook || ""}
-                onChange={(e) => setSelectedServiceToBook(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 outline-none transition-all appearance-none"
+            {/* Services (Multiple) */}
+            <div className="relative" ref={dropdownRef}>
+              <label className="text-sm font-medium mb-1.5 block">Select Services</label>
+              <div 
+                className="w-full px-4 py-3 rounded-xl bg-background border border-input focus:ring-2 focus:ring-primary/30 cursor-pointer flex justify-between items-center transition-all min-h-[50px]"
+                onClick={() => setIsServiceDropdownOpen(!isServiceDropdownOpen)}
               >
-                <option value="">Choose a service</option>
-                <optgroup label="Standard Services">
-                  {allServices.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Memberships & Offers">
-                  {allOffers.map((o) => (
-                    <option key={o} value={o}>{o}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Bridal Packages">
-                  {bridalPackages.map((pkg) => (
-                    <option key={pkg.name} value={`${pkg.name} (${pkg.price})`}>{pkg.name} - {pkg.price}</option>
-                  ))}
-                </optgroup>
-              </select>
+                <span className={selectedServices.length === 0 ? "text-muted-foreground" : "text-foreground line-clamp-1"}>
+                  {selectedServices.length === 0 ? "Choose services" : selectedServices.join(", ")}
+                </span>
+                <ChevronDown size={18} className={`text-muted-foreground transition-transform ${isServiceDropdownOpen ? "rotate-180" : ""}`} />
+              </div>
+
+              {isServiceDropdownOpen && (
+                <div className="absolute z-50 w-full mt-2 bg-background border border-input rounded-xl shadow-lg max-h-60 overflow-y-auto p-2">
+                  <div className="space-y-4 p-2 relative">
+                    {/* Add sticky close button for ease of use */}
+                    <div className="sticky top-0 bg-background/95 backdrop-blur z-10 flex justify-end pb-2 border-b">
+                      <button type="button" onClick={() => setIsServiceDropdownOpen(false)} className="text-xs font-semibold text-primary">Done</button>
+                    </div>
+
+                    {[
+                      { label: "Standard Services", items: allServices },
+                      { label: "Memberships & Offers", items: allOffers },
+                      { label: "Bridal Packages", items: bridalPackages.map(pkg => `${pkg.name} (${pkg.price})`) }
+                    ].map((group) => (
+                      <div key={group.label}>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">{group.label}</p>
+                        {group.items.map((item) => (
+                          <label key={item} className="flex items-start gap-3 p-2 hover:bg-secondary/50 rounded-lg cursor-pointer transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedServices.includes(item)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedServices([...selectedServices, item]);
+                                else setSelectedServices(selectedServices.filter(s => s !== item));
+                              }}
+                              className="mt-1 shrink-0 accent-primary w-4 h-4 cursor-pointer"
+                            />
+                            <span className="text-sm cursor-pointer">{item}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Date & Time */}

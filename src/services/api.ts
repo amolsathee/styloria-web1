@@ -40,7 +40,8 @@ export const bookingAPI = {
     createBooking: (data: any) => api.post('/bookings', data),
     getAllBookings: () => api.get('/bookings'),
     getUserBookings: (params: { email?: string; phone?: string }) => api.get('/bookings/user', { params }),
-    updateBookingStatus: (id: string, status: string) => api.patch(`/bookings/${id}/status`, { status })
+    updateBookingStatus: (id: string, status: string) => api.patch(`/bookings/${id}/status`, { status }),
+    updateBookingDetails: (id: string, data: { date: string, time: string, service: string, beautician: string }) => api.put(`/bookings/${id}`, data)
 };
 
 export const adminAPI = {

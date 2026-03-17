@@ -53,3 +53,17 @@ exports.updateBookingStatus = async (req, res) => {
         res.status(500).json({ message: 'Server error updating booking status' });
     }
 };
+
+exports.updateBookingDetails = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { date, time, service, beautician } = req.body;
+
+        const booking = await Booking.findByIdAndUpdate(id, { date, time, service, beautician }, { new: true });
+        if (!booking) return res.status(404).json({ message: 'Booking not found' });
+
+        res.json({ message: 'Booking details updated', booking });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error updating booking details' });
+    }
+};
