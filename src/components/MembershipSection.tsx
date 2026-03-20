@@ -44,13 +44,27 @@ const MembershipSection = () => {
                 initial={{ opacity: 0, y: 30 }}
                 animate={inView ? { opacity: 1, y: 0 } : {}}
                 transition={{ delay: i * 0.12, duration: 0.5 }}
-                className="glass-card rounded-2xl p-8 text-center hover:shadow-lg hover:-translate-y-1 transition-all group"
+                className="glass-card rounded-2xl p-8 text-center hover:shadow-lg hover:-translate-y-1 transition-all group relative overflow-hidden"
               >
+                {offer.tag && (
+                  <div className="mb-4">
+                    <span className={`inline-block ${offer.tagColor || "bg-primary"} text-primary-foreground text-[10px] sm:text-xs font-semibold px-3 py-1 rounded-full`}>
+                      {offer.tag}
+                    </span>
+                  </div>
+                )}
                 <div className="w-14 h-14 gradient-primary rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:scale-110 transition-transform">
                   <IconComponent className="text-primary-foreground" size={24} />
                 </div>
                 <h3 className="text-lg font-heading font-semibold mb-1">{offer.title}</h3>
-                <p className="text-2xl font-bold text-gradient-primary mb-3">{offer.price}</p>
+                <div className="flex items-baseline justify-center gap-2 mb-3">
+                  <span className="text-2xl font-bold text-gradient-primary">{offer.price}</span>
+                  {offer.originalPrice && (
+                    <span className="text-muted-foreground line-through text-xs font-semibold">
+                      {offer.originalPrice}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{offer.desc}</p>
               </motion.div>
             );
