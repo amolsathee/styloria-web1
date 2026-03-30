@@ -24,7 +24,7 @@ const ReviewsSection = () => {
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-          {reviews.filter(r => r.showOnHomepage).map((review, i) => (
+          {(reviews.filter(r => r.showOnHomepage).length > 0 ? reviews.filter(r => r.showOnHomepage) : reviews.slice(0, 2)).map((review, i) => (
             <motion.div
               key={review.name}
               initial={{ opacity: 0, y: 30 }}

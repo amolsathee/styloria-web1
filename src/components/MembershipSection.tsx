@@ -70,6 +70,11 @@ const MembershipSection = () => {
             );
           })}
         </div>
+        <div className="text-center mt-12">
+          <a href="/offers" className="inline-block mt-4 gradient-primary text-white px-8 py-3 rounded-full font-semibold hover:opacity-90 transition-opacity">
+            View All Offers
+          </a>
+        </div>
       </div>
     </section>
   );
